@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>shm_sensor_transport_test</name>
+  <version>0.1.0</version>
+  <description>Integration tests and benchmarks for shm_sensor_transport.</description>
+  <maintainer email="maik.knof@gmx.de">Maik Knof</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
+  <depend>sensor_msgs</depend>
+
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>shm_sensor_transport</exec_depend>
+  <exec_depend>shm_sensor_transport_interfaces</exec_depend>
+  <exec_depend>shm_sensor_transport_py</exec_depend>
+
+  <test_depend>ament_cmake_pytest</test_depend>
+  <exec_depend>launch_testing</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

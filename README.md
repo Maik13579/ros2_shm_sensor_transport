@@ -52,11 +52,11 @@ C++ relay component
   ├── subscribes to /camera/image_raw
   ├── allocates /dev/shm/ros2_shm_camera_image_raw_<hash>
   ├── writes msg.data into the next ring-buffer slot
-  └── publishes /camera/image_raw/shm as ShmImage metadata
+  └── publishes /camera/image_raw/_shm as hidden ShmImage metadata
 
 Python process
   └── ShmSubscriber
-        ├── subscribes to /camera/image_raw/shm
+        ├── accepts /camera/image_raw and subscribes to /camera/image_raw/_shm
         ├── opens and caches the shared-memory object
         ├── copies the slot payload into Python-owned memory
         ├── validates slot sequence counters
@@ -65,6 +65,9 @@ Python process
 
 Point clouds follow the same pattern using `sensor_msgs/PointCloud2` input and
 `ShmPointCloud2` metadata.
+
+The relay derives the metadata topic from the input topic as `<input_topic>/_shm`.
+This is not configurable so metadata stays on a predictable hidden ROS topic.
 
 ## Shared Memory Model
 
@@ -92,16 +95,131 @@ normal ROS 2 communication:
 
 ```text
 /camera/image_raw       sensor_msgs/Image
-/camera/image_raw/shm   shm_sensor_transport_interfaces/ShmImage
+/camera/image_raw/_shm   shm_sensor_transport_interfaces/ShmImage
 
 /points                 sensor_msgs/PointCloud2
-/points/shm             shm_sensor_transport_interfaces/ShmPointCloud2
+/points/_shm             shm_sensor_transport_interfaces/ShmPointCloud2
 ```
 
 Existing ROS 2 tools and remote subscribers can continue to use the original
 topics. Local Python perception code can opt into the shared-memory metadata
 topic when it benefits from avoiding Python-side deserialization of the full
 sensor message.
+
+## Usage
+
+For performance, load the sensor driver component and the shared-memory relay
+component into the same component container with intra-process communication
+enabled. The relay subscribes to the normal sensor topic inside that process,
+writes the payload into shared memory, and publishes metadata on a hidden topic
+derived from the input topic:
+
+```text
+/camera/image_raw       sensor_msgs/Image
+/camera/image_raw/_shm   shm_sensor_transport_interfaces/ShmImage
+```
+
+Example relay component next to an image sensor driver:
+
+```python
+ComposableNode(
+    package='your_sensor_driver_package',
+    plugin='your_sensor_driver_package::CameraDriverComponent',
+    name='camera_driver',
+    parameters=[{
+        'image_topic': '/camera/image_raw',
+    }],
+    extra_arguments=[{'use_intra_process_comms': True}],
+),
+ComposableNode(
+    package='shm_sensor_transport',
+    plugin='shm_sensor_transport::ShmImageRelayComponent',
+    name='shm_image_relay',
+    parameters=[{
+        'common.input_topic': '/camera/image_raw',
+        'common.slot_count': 8,
+        'common.slot_size_bytes': 0,
+        'common.publish_status': False,
+    }],
+    extra_arguments=[{'use_intra_process_comms': True}],
+)
+```
+
+For point clouds, use `shm_sensor_transport::ShmPointCloud2RelayComponent` and
+pass `/points` to the Python subscriber.
+
+`common.slot_size_bytes` controls the fixed payload capacity of each shared
+memory slot. Keep it at `0` to infer the size from the first frame, or set it
+explicitly for known fixed-size streams. `common.publish_status` is optional and
+defaults to `false`; set it to `true` and provide `common.status_topic` only when
+you want periodic transport status messages.
+
+Subscribe from Python with the normal sensor topic. `ShmSubscriber` appends
+`/_shm` when needed, and leaves topics that already end with `/_shm` unchanged.
+To reconstruct normal ROS image messages:
+
+```python
+import rclpy
+from rclpy.node import Node
+
+from shm_sensor_transport_py import ShmSubscriber
+from shm_sensor_transport_py.loaders import RosImageLoader
+
+
+class ImageConsumer(Node):
+    def __init__(self):
+        super().__init__('image_consumer')
+        self.sub = ShmSubscriber(
+            node=self,
+            topic='/camera/image_raw',
+            loader=RosImageLoader(),
+            callback=self.on_image,
+        )
+
+    def on_image(self, msg, meta):
+        self.get_logger().info(f'received {msg.width}x{msg.height} from {meta.shm_name}')
+
+
+rclpy.init()
+node = ImageConsumer()
+rclpy.spin(node)
+node.destroy_node()
+rclpy.shutdown()
+```
+
+Use `RosPointCloud2Loader` for `sensor_msgs/PointCloud2` messages:
+
+```python
+from shm_sensor_transport_py.loaders import RosPointCloud2Loader
+
+sub = ShmSubscriber(
+    node=node,
+    topic='/points',
+    loader=RosPointCloud2Loader(),
+    callback=on_cloud,
+)
+```
+
+Other loaders are available when user code wants NumPy arrays, OpenCV-style image
+arrays, Open3D point clouds, or raw bytes instead of ROS message objects.
+
+## Benchmarks
+
+The benchmark package compares a normal Python `sensor_msgs/Image` subscriber
+against a Python `ShmSubscriber` fed by a C++ publisher and relay loaded into one
+component container with intra-process communication enabled. Both paths return
+ROS image messages to Python and validate deterministic payload bytes, so the
+numbers focus on transport cost rather than application logic.
+
+Across the recorded runs, the shared-memory path reduced mean latency and CPU
+time most clearly for large payloads. With a 1 MiB image stream at 120 Hz, the
+shared-memory subscriber measured about `0.8 ms` mean latency versus `4.7 ms`
+for the normal Python subscriber, with lower CPU use in the benchmark process.
+At 4 MiB and 30 Hz, the normal subscriber dropped best-effort samples while the
+shared-memory path received all requested frames and used substantially less CPU.
+
+See [BENCHMARK.md](BENCHMARK.md) for the exact commands, tables, and additional
+payload/rate settings.
 
 ## Limits
 
