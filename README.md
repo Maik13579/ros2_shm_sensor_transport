@@ -44,6 +44,27 @@ The transport has three ROS 2 packages:
 
 Typical data flow:
 
+```mermaid
+flowchart LR
+    driver["C++ sensor driver component"]
+    relay["ShmImageRelayComponent or ShmPointCloud2RelayComponent"]
+    shm[("POSIX shared memory ring buffer")]
+    meta["Hidden metadata topic<br/><code>/sensor/topic/_shm</code>"]
+    normal["Normal ROS 2 topic<br/><code>/sensor/topic</code>"]
+    python["Python ShmSubscriber"]
+    loader["Python loader<br/>ROS msg / NumPy / OpenCV / Open3D / bytes"]
+    remote["Existing ROS 2 subscribers and tools"]
+
+    driver -- "sensor_msgs/Image or PointCloud2<br/>intra-process when composed together" --> relay
+    driver -- "same normal ROS 2 topic" --> normal
+    normal --> remote
+    relay -- "payload bytes" --> shm
+    relay -- "small ShmImage or ShmPointCloud2 metadata" --> meta
+    meta --> python
+    shm --> python
+    python --> loader
+```
+
 ```text
 Sensor driver process
   └── publishes /camera/image_raw as sensor_msgs/Image
