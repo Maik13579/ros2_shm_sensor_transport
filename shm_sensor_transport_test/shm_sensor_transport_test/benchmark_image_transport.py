@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import argparse
+import json
 import os
 import resource
 import statistics
+import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -60,9 +63,21 @@ class PhaseMetrics:
 
 
 @dataclass
+class SubscriberResult:
+    """Measurements returned by one subscriber worker process."""
+
+    latencies_ms: list[float]
+    valid_frames: int
+    first_receive_time: float | None
+    last_receive_time: float | None
+
+
+@dataclass
 class PhaseSummary:
     """Display-ready benchmark measurements for one phase."""
 
+    subscriber_count: int
+    expected_frames: int
     received_frames: int
     valid_frames: int
     mean_latency_ms: float
@@ -82,9 +97,17 @@ class PhaseSummary:
 class BenchmarkSubscriber(Node):
     """Measure one benchmark phase and validate each received payload."""
 
-    def __init__(self, mode: str, frame_count: int, payload_size: int, rate_hz: float) -> None:
-        super().__init__(f'shm_sensor_transport_{mode}_benchmark_subscriber')
+    def __init__(
+        self,
+        mode: str,
+        subscriber_index: int,
+        frame_count: int,
+        payload_size: int,
+        rate_hz: float,
+    ) -> None:
+        super().__init__(f'shm_sensor_transport_{mode}_benchmark_subscriber_{subscriber_index}')
         self._mode = mode
+        self._subscriber_index = subscriber_index
         self._frame_count = frame_count
         self._payload_size = payload_size
         self._expected_receive_window = (frame_count / max(1.0, rate_hz)) + 1.0
@@ -220,23 +243,122 @@ def diff_resources(before: ResourceSample, after: ResourceSample) -> PhaseMetric
     )
 
 
+def make_subscriber_command(
+    mode: str,
+    subscriber_index: int,
+    frame_count: int,
+    payload_size: int,
+    rate_hz: float,
+    timeout: float,
+) -> list[str]:
+    """Build a command line for one isolated Python subscriber process."""
+    return [
+        sys.executable,
+        __file__,
+        '--subscriber-worker',
+        '--mode', mode,
+        '--subscriber-index', str(subscriber_index),
+        '--frames', str(frame_count),
+        '--payload-size', str(payload_size),
+        '--rate-hz', str(rate_hz),
+        '--timeout', str(timeout),
+    ]
+
+
+def start_subscriber_workers(
+    mode: str,
+    subscriber_count: int,
+    frame_count: int,
+    payload_size: int,
+    rate_hz: float,
+    timeout: float,
+) -> list[subprocess.Popen]:
+    env = os.environ.copy()
+    env.setdefault('PYTHONUNBUFFERED', '1')
+    return [
+        subprocess.Popen(
+            make_subscriber_command(
+                mode,
+                index,
+                frame_count,
+                payload_size,
+                rate_hz,
+                timeout,
+            ),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        for index in range(subscriber_count)
+    ]
+
+
+def terminate_subscriber_workers(processes: list[subprocess.Popen]) -> None:
+    for process in processes:
+        if process.poll() is None:
+            process.terminate()
+    deadline = time.monotonic() + 2.0
+    for process in processes:
+        if process.poll() is None:
+            remaining = max(0.0, deadline - time.monotonic())
+            try:
+                process.wait(timeout=remaining)
+            except subprocess.TimeoutExpired:
+                process.kill()
+
+
+def parse_subscriber_results(processes: list[subprocess.Popen]) -> list[SubscriberResult]:
+    results = []
+    for index, process in enumerate(processes):
+        stdout, stderr = process.communicate(timeout=2.0)
+        if process.returncode != 0:
+            raise RuntimeError(
+                f'subscriber worker {index} failed with code {process.returncode}:\n{stderr}'
+            )
+        json_lines = [line for line in stdout.splitlines() if line.startswith('{')]
+        if not json_lines:
+            raise RuntimeError(f'subscriber worker {index} did not return JSON:\n{stdout}\n{stderr}')
+        data = json.loads(json_lines[-1])
+        results.append(
+            SubscriberResult(
+                latencies_ms=data['latencies_ms'],
+                valid_frames=data['valid_frames'],
+                first_receive_time=data['first_receive_time'],
+                last_receive_time=data['last_receive_time'],
+            )
+        )
+    return results
+
+
 def run_launch_phase(
-  container,
-  subscriber: BenchmarkSubscriber,
-  timeout: float,
-) -> PhaseMetrics:
+    container,
+    mode: str,
+    subscriber_count: int,
+    frame_count: int,
+    payload_size: int,
+    rate_hz: float,
+    timeout: float,
+) -> tuple[PhaseMetrics, list[SubscriberResult]]:
     launch_service = launch.LaunchService()
     launch_service.include_launch_description(launch.LaunchDescription([container]))
-
-    executor = SingleThreadedExecutor()
-    executor.add_node(subscriber)
+    subscriber_processes = start_subscriber_workers(
+        mode,
+        subscriber_count,
+        frame_count,
+        payload_size,
+        rate_hz,
+        timeout,
+    )
     done = threading.Event()
     before = sample_resources()
 
     def spin_until_done() -> None:
         deadline = time.monotonic() + timeout
-        while rclpy.ok() and time.monotonic() < deadline and not subscriber.complete():
-            executor.spin_once(timeout_sec=0.02)
+        while time.monotonic() < deadline and any(
+            process.poll() is None for process in subscriber_processes
+        ):
+            time.sleep(0.02)
         done.set()
         launch_service.shutdown()
 
@@ -247,13 +369,36 @@ def run_launch_phase(
     finally:
         done.set()
         spin_thread.join(timeout=5.0)
-    return diff_resources(before, sample_resources())
+        terminate_subscriber_workers(subscriber_processes)
+    subscriber_results = parse_subscriber_results(subscriber_processes)
+    metrics = diff_resources(before, sample_resources())
+    return metrics, subscriber_results
 
 
-def summarize_phase(subscriber: BenchmarkSubscriber, metrics: PhaseMetrics) -> PhaseSummary:
-    samples = subscriber.latencies_ms
+def summarize_phase(
+    subscriber_results: list[SubscriberResult],
+    frame_count: int,
+    payload_size: int,
+    metrics: PhaseMetrics,
+) -> PhaseSummary:
+    samples = [
+        latency
+        for result in subscriber_results
+        for latency in result.latencies_ms
+    ]
+    valid_frames = sum(result.valid_frames for result in subscriber_results)
+    receive_times = [
+        timestamp
+        for result in subscriber_results
+        for timestamp in (result.first_receive_time, result.last_receive_time)
+        if timestamp is not None
+    ]
+    subscriber_count = len(subscriber_results)
+    expected_frames = frame_count * subscriber_count
     if not samples:
         return PhaseSummary(
+            subscriber_count=subscriber_count,
+            expected_frames=expected_frames,
             received_frames=0,
             valid_frames=0,
             mean_latency_ms=0.0,
@@ -271,15 +416,17 @@ def summarize_phase(subscriber: BenchmarkSubscriber, metrics: PhaseMetrics) -> P
         )
 
     receive_span = 0.0
-    if subscriber.first_receive_time is not None and subscriber.last_receive_time is not None:
-        receive_span = max(0.000001, subscriber.last_receive_time - subscriber.first_receive_time)
-    mib_received = (len(samples) * subscriber._payload_size) / (1024.0 * 1024.0)
+    if receive_times:
+        receive_span = max(0.000001, max(receive_times) - min(receive_times))
+    mib_received = (len(samples) * payload_size) / (1024.0 * 1024.0)
     receive_mib_per_s = mib_received / receive_span if receive_span > 0.0 else 0.0
     wall_mib_per_s = mib_received / metrics.wall_seconds
     receive_fps = len(samples) / receive_span if receive_span > 0.0 else 0.0
     return PhaseSummary(
+        subscriber_count=subscriber_count,
+        expected_frames=expected_frames,
         received_frames=len(samples),
-        valid_frames=subscriber.valid_frames,
+        valid_frames=valid_frames,
         mean_latency_ms=statistics.mean(samples),
         median_latency_ms=statistics.median(samples),
         min_latency_ms=min(samples),
@@ -297,6 +444,8 @@ def summarize_phase(subscriber: BenchmarkSubscriber, metrics: PhaseMetrics) -> P
 
 def print_summary_table(normal: PhaseSummary, shm: PhaseSummary) -> None:
     rows = [
+        ('Subscribers', f'{normal.subscriber_count}', f'{shm.subscriber_count}'),
+        ('Expected delivered frames', f'{normal.expected_frames}', f'{shm.expected_frames}'),
         ('Received frames', f'{normal.received_frames}', f'{shm.received_frames}'),
         (
             'Valid frames',
@@ -334,7 +483,7 @@ def print_summary_table(normal: PhaseSummary, shm: PhaseSummary) -> None:
             f'{shm.self_max_rss_kib} KiB',
         ),
         (
-            'Max RSS, child component process',
+            'Max RSS, child processes',
             f'{normal.children_max_rss_kib} KiB',
             f'{shm.children_max_rss_kib} KiB',
         ),
@@ -348,37 +497,85 @@ def print_summary_table(normal: PhaseSummary, shm: PhaseSummary) -> None:
     print()
 
 
+def run_subscriber_worker(args) -> None:
+    rclpy.init()
+    try:
+        subscriber = BenchmarkSubscriber(
+            args.mode,
+            args.subscriber_index,
+            args.frames,
+            args.payload_size,
+            args.rate_hz,
+        )
+        executor = SingleThreadedExecutor()
+        executor.add_node(subscriber)
+        deadline = time.monotonic() + args.timeout
+        try:
+            while rclpy.ok() and time.monotonic() < deadline and not subscriber.complete():
+                executor.spin_once(timeout_sec=0.02)
+        finally:
+            executor.remove_node(subscriber)
+            subscriber.destroy_node()
+        print(json.dumps({
+            'latencies_ms': subscriber.latencies_ms,
+            'valid_frames': subscriber.valid_frames,
+            'first_receive_time': subscriber.first_receive_time,
+            'last_receive_time': subscriber.last_receive_time,
+        }))
+    finally:
+        rclpy.shutdown()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--frames', type=int, default=120)
     parser.add_argument('--payload-size', type=int, default=1024 * 1024)
     parser.add_argument('--rate-hz', type=float, default=120.0)
     parser.add_argument('--timeout', type=float, default=20.0)
+    parser.add_argument('--subscribers', type=int, default=1)
+    parser.add_argument('--subscriber-worker', action='store_true')
+    parser.add_argument('--mode', choices=['normal', 'shm'], default='normal')
+    parser.add_argument('--subscriber-index', type=int, default=0)
     args = parser.parse_args()
+    if args.subscriber_worker:
+        run_subscriber_worker(args)
+        return
+    if args.subscribers < 1:
+        parser.error('--subscribers must be at least 1')
 
     os.environ.setdefault('ROS_LOG_DIR', '/tmp/shm_sensor_transport_benchmark_logs')
-    rclpy.init()
-    try:
-        normal_sub = BenchmarkSubscriber('normal', args.frames, args.payload_size, args.rate_hz)
-        normal_metrics = run_launch_phase(
-            make_container('normal', args.frames, args.payload_size, args.rate_hz),
-            normal_sub,
-            args.timeout,
-        )
-        normal_summary = summarize_phase(normal_sub, normal_metrics)
-        normal_sub.destroy_node()
+    normal_metrics, normal_results = run_launch_phase(
+        make_container('normal', args.frames, args.payload_size, args.rate_hz),
+        'normal',
+        args.subscribers,
+        args.frames,
+        args.payload_size,
+        args.rate_hz,
+        args.timeout,
+    )
+    normal_summary = summarize_phase(
+        normal_results,
+        args.frames,
+        args.payload_size,
+        normal_metrics,
+    )
 
-        shm_sub = BenchmarkSubscriber('shm', args.frames, args.payload_size, args.rate_hz)
-        shm_metrics = run_launch_phase(
-            make_container('shm', args.frames, args.payload_size, args.rate_hz),
-            shm_sub,
-            args.timeout,
-        )
-        shm_summary = summarize_phase(shm_sub, shm_metrics)
-        shm_sub.destroy_node()
-        print_summary_table(normal_summary, shm_summary)
-    finally:
-        rclpy.shutdown()
+    shm_metrics, shm_results = run_launch_phase(
+        make_container('shm', args.frames, args.payload_size, args.rate_hz),
+        'shm',
+        args.subscribers,
+        args.frames,
+        args.payload_size,
+        args.rate_hz,
+        args.timeout,
+    )
+    shm_summary = summarize_phase(
+        shm_results,
+        args.frames,
+        args.payload_size,
+        shm_metrics,
+    )
+    print_summary_table(normal_summary, shm_summary)
 
 
 if __name__ == '__main__':
