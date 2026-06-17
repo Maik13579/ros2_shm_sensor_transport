@@ -45,19 +45,19 @@ The transport has three ROS 2 packages:
 Typical data flow:
 
 ```mermaid
-flowchart LR
+flowchart TD
     driver["C++ sensor driver component"]
+    normal["Normal ROS 2 topic<br/><code>/sensor/topic</code>"]
+    remote["Existing ROS 2 subscribers and tools"]
     relay["ShmImageRelayComponent or ShmPointCloud2RelayComponent"]
     shm[("POSIX shared memory ring buffer")]
     meta["Hidden metadata topic<br/><code>/sensor/topic/_shm</code>"]
-    normal["Normal ROS 2 topic<br/><code>/sensor/topic</code>"]
     python["Python ShmSubscriber"]
     loader["Python loader<br/>ROS msg / NumPy / OpenCV / Open3D / bytes"]
-    remote["Existing ROS 2 subscribers and tools"]
 
-    driver -- "sensor_msgs/Image or PointCloud2<br/>intra-process when composed together" --> relay
     driver -- "same normal ROS 2 topic" --> normal
     normal --> remote
+    driver -- "sensor_msgs/Image or PointCloud2<br/>intra-process when composed together" --> relay
     relay -- "payload bytes" --> shm
     relay -- "small ShmImage or ShmPointCloud2 metadata" --> meta
     meta --> python
