@@ -84,6 +84,7 @@ class PhaseSummary:
     median_latency_ms: float
     min_latency_ms: float
     max_latency_ms: float
+    max_latency_after_first_ms: float
     receive_rate_fps: float
     receive_throughput_mib_s: float
     wall_throughput_mib_s: float
@@ -386,6 +387,11 @@ def summarize_phase(
         for result in subscriber_results
         for latency in result.latencies_ms
     ]
+    samples_after_first = [
+        latency
+        for result in subscriber_results
+        for latency in result.latencies_ms[1:]
+    ]
     valid_frames = sum(result.valid_frames for result in subscriber_results)
     receive_times = [
         timestamp
@@ -405,6 +411,7 @@ def summarize_phase(
             median_latency_ms=0.0,
             min_latency_ms=0.0,
             max_latency_ms=0.0,
+            max_latency_after_first_ms=0.0,
             receive_rate_fps=0.0,
             receive_throughput_mib_s=0.0,
             wall_throughput_mib_s=0.0,
@@ -431,6 +438,7 @@ def summarize_phase(
         median_latency_ms=statistics.median(samples),
         min_latency_ms=min(samples),
         max_latency_ms=max(samples),
+        max_latency_after_first_ms=max(samples_after_first) if samples_after_first else 0.0,
         receive_rate_fps=receive_fps,
         receive_throughput_mib_s=receive_mib_per_s,
         wall_throughput_mib_s=wall_mib_per_s,
@@ -460,6 +468,11 @@ def print_summary_table(normal: PhaseSummary, shm: PhaseSummary) -> None:
         ),
         ('Min latency', f'{normal.min_latency_ms:.3f} ms', f'{shm.min_latency_ms:.3f} ms'),
         ('Max latency', f'{normal.max_latency_ms:.3f} ms', f'{shm.max_latency_ms:.3f} ms'),
+        (
+            'Max latency after first',
+            f'{normal.max_latency_after_first_ms:.3f} ms',
+            f'{shm.max_latency_after_first_ms:.3f} ms',
+        ),
         ('Receive rate', f'{normal.receive_rate_fps:.1f} fps', f'{shm.receive_rate_fps:.1f} fps'),
         (
             'Receive throughput',
@@ -490,10 +503,28 @@ def print_summary_table(normal: PhaseSummary, shm: PhaseSummary) -> None:
     ]
 
     print()
-    print('| Metric | Normal Python Image subscriber | Python ShmSubscriber |')
-    print('| --- | ---: | ---: |')
+    headers = ('Metric', 'Normal Python Image subscriber', 'Python ShmSubscriber')
+    column_widths = [
+        max(len(headers[0]), *(len(row[0]) for row in rows)),
+        max(len(headers[1]), *(len(row[1]) for row in rows)),
+        max(len(headers[2]), *(len(row[2]) for row in rows)),
+    ]
+    print(
+        f'| {headers[0]:<{column_widths[0]}} | '
+        f'{headers[1]:>{column_widths[1]}} | '
+        f'{headers[2]:>{column_widths[2]}} |'
+    )
+    print(
+        f'| {"-" * column_widths[0]} | '
+        f'{"-" * (column_widths[1] - 1)}: | '
+        f'{"-" * (column_widths[2] - 1)}: |'
+    )
     for metric, normal_value, shm_value in rows:
-        print(f'| {metric} | {normal_value} | {shm_value} |')
+        print(
+            f'| {metric:<{column_widths[0]}} | '
+            f'{normal_value:>{column_widths[1]}} | '
+            f'{shm_value:>{column_widths[2]}} |'
+        )
     print()
 
 
