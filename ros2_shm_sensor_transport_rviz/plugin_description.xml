@@ -1,0 +1,18 @@
+<library path="ros2_shm_sensor_transport_rviz">
+  <class
+    name="ros2_shm_sensor_transport_rviz/ShmImage"
+    type="ros2_shm_sensor_transport_rviz::ShmImageDisplay"
+    base_class_type="rviz_common::Display">
+    <description>
+      Displays sensor_msgs/Image data transported through shm_sensor_transport shared memory.
+    </description>
+  </class>
+  <class
+    name="ros2_shm_sensor_transport_rviz/ShmPointCloud2"
+    type="ros2_shm_sensor_transport_rviz::ShmPointCloud2Display"
+    base_class_type="rviz_common::Display">
+    <description>
+      Displays sensor_msgs/PointCloud2 data transported through shm_sensor_transport shared memory.
+    </description>
+  </class>
+</library>
