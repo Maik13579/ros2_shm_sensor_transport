@@ -27,8 +27,10 @@ find_package(shm_sensor_transport_interfaces REQUIRED)
 add_library(${PROJECT_NAME} SHARED
   src/parameter_utils.cpp
   src/qos_utils.cpp
+  src/shm_handle.cpp
   src/shm_name.cpp
   src/shm_ring_buffer.cpp
+  src/shm_subscriber.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -79,6 +81,12 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_shm_ring_buffer test/test_shm_ring_buffer.cpp)
   target_link_libraries(test_shm_ring_buffer ${PROJECT_NAME})
+
+  ament_add_gtest(test_shm_handle test/test_shm_handle.cpp)
+  target_link_libraries(test_shm_handle ${PROJECT_NAME})
+
+  ament_add_gtest(test_shm_subscriber test/test_shm_subscriber.cpp)
+  target_link_libraries(test_shm_subscriber ${PROJECT_NAME})
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)

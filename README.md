@@ -224,6 +224,48 @@ sub = ShmSubscriber(
 Other loaders are available when user code wants NumPy arrays, OpenCV-style image
 arrays, Open3D point clouds, or raw bytes instead of ROS message objects.
 
+### C++
+
+Include `shm_sensor_transport/shm_subscriber.hpp` and keep the subscriber object
+alive for as long as the node should receive frames:
+
+```cpp
+#include <memory>
+
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/image.hpp>
+
+#include "shm_sensor_transport/shm_subscriber.hpp"
+
+class ImageConsumer : public rclcpp::Node
+{
+public:
+  ImageConsumer()
+  : rclcpp::Node("image_consumer")
+  {
+    sub_ = std::make_unique<shm_sensor_transport::ShmImageSubscriber>(
+      this,
+      "/camera/image_raw",
+      [this](
+        sensor_msgs::msg::Image::UniquePtr msg,
+        const shm_sensor_transport_interfaces::msg::ShmImage & meta)
+      {
+        RCLCPP_INFO(
+          get_logger(), "received %ux%u from %s",
+          msg->width, msg->height, meta.shm_name.c_str());
+      });
+  }
+
+private:
+  std::unique_ptr<shm_sensor_transport::ShmImageSubscriber> sub_;
+};
+```
+
+For point clouds, use `shm_sensor_transport::ShmPointCloud2Subscriber` with a
+`sensor_msgs::msg::PointCloud2::UniquePtr` callback. The C++ subscriber accepts
+the same normal topic names as the Python API and also appends `/_shm` unless the
+topic already points at the metadata topic.
+
 ## Benchmarks
 
 The benchmark package compares a normal Python `sensor_msgs/Image` subscriber
