@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -60,6 +62,7 @@ class PhaseMetrics:
     cpu_percent: float
     self_max_rss_kib: int
     children_max_rss_kib: int
+    after_1s: PhaseSummary | None = None
 
 
 @dataclass
@@ -67,6 +70,8 @@ class SubscriberResult:
     """Measurements returned by one subscriber worker process."""
 
     latencies_ms: list[float]
+    receive_times: list[float]
+    valid_samples: list[bool]
     valid_frames: int
     first_receive_time: float | None
     last_receive_time: float | None
@@ -77,7 +82,7 @@ class PhaseSummary:
     """Display-ready benchmark measurements for one phase."""
 
     subscriber_count: int
-    expected_frames: int
+    expected_frames: int | None
     received_frames: int
     valid_frames: int
     mean_latency_ms: float
@@ -113,6 +118,8 @@ class BenchmarkSubscriber(Node):
         self._payload_size = payload_size
         self._expected_receive_window = (frame_count / max(1.0, rate_hz)) + 1.0
         self.latencies_ms = []
+        self.receive_times = []
+        self.valid_samples = []
         self.valid_frames = 0
         self.first_receive_time = None
         self.last_receive_time = None
@@ -159,7 +166,10 @@ class BenchmarkSubscriber(Node):
             self.first_receive_time = now_monotonic
         self.last_receive_time = now_monotonic
         self.latencies_ms.append((now_ns - sent_ns) / 1_000_000.0)
-        if payload_matches_sequence(payload, sequence, self._payload_size):
+        self.receive_times.append(now_monotonic)
+        valid = payload_matches_sequence(payload, sequence, self._payload_size)
+        self.valid_samples.append(valid)
+        if valid:
             self.valid_frames += 1
 
 
@@ -324,6 +334,8 @@ def parse_subscriber_results(processes: list[subprocess.Popen]) -> list[Subscrib
         results.append(
             SubscriberResult(
                 latencies_ms=data['latencies_ms'],
+                receive_times=data['receive_times'],
+                valid_samples=data['valid_samples'],
                 valid_frames=data['valid_frames'],
                 first_receive_time=data['first_receive_time'],
                 last_receive_time=data['last_receive_time'],
@@ -381,26 +393,39 @@ def summarize_phase(
     frame_count: int,
     payload_size: int,
     metrics: PhaseMetrics,
+    *,
+    cutoff_seconds: float = 0.0,
 ) -> PhaseSummary:
-    samples = [
-        latency
+    first_receive_times = [
+        result.first_receive_time
         for result in subscriber_results
-        for latency in result.latencies_ms
+        if result.first_receive_time is not None
     ]
+    cutoff_time = min(first_receive_times) + cutoff_seconds if first_receive_times else None
+    sample_pairs = [
+        (latency, receive_time, valid)
+        for result in subscriber_results
+        for latency, receive_time, valid in zip(
+            result.latencies_ms,
+            result.receive_times,
+            result.valid_samples,
+        )
+        if cutoff_time is None or receive_time >= cutoff_time
+    ]
+    samples = [latency for latency, _, _ in sample_pairs]
     samples_after_first = [
         latency
         for result in subscriber_results
-        for latency in result.latencies_ms[1:]
+        for latency, receive_time in zip(result.latencies_ms[1:], result.receive_times[1:])
+        if cutoff_time is None or receive_time >= cutoff_time
     ]
-    valid_frames = sum(result.valid_frames for result in subscriber_results)
+    valid_frames = sum(1 for _, _, valid in sample_pairs if valid)
     receive_times = [
-        timestamp
-        for result in subscriber_results
-        for timestamp in (result.first_receive_time, result.last_receive_time)
-        if timestamp is not None
+        receive_time
+        for _, receive_time, _ in sample_pairs
     ]
     subscriber_count = len(subscriber_results)
-    expected_frames = frame_count * subscriber_count
+    expected_frames = frame_count * subscriber_count if cutoff_seconds <= 0.0 else None
     if not samples:
         return PhaseSummary(
             subscriber_count=subscriber_count,
@@ -451,80 +476,162 @@ def summarize_phase(
 
 
 def print_summary_table(normal: PhaseSummary, shm: PhaseSummary) -> None:
+    normal_after_1s = normal.after_1s
+    shm_after_1s = shm.after_1s
+
+    def optional_frames(summary: PhaseSummary) -> str:
+        return 'n/a' if summary.expected_frames is None else f'{summary.expected_frames}'
+
+    def optional_float(value: float, unit: str, precision: int = 3) -> str:
+        if value <= 0.0:
+            return 'n/a'
+        return f'{value:.{precision}f} {unit}'
+
+    def optional_rate(value: float, unit: str) -> str:
+        if value <= 0.0:
+            return 'n/a'
+        return f'{value:.1f} {unit}'
+
     rows = [
-        ('Subscribers', f'{normal.subscriber_count}', f'{shm.subscriber_count}'),
-        ('Expected delivered frames', f'{normal.expected_frames}', f'{shm.expected_frames}'),
-        ('Received frames', f'{normal.received_frames}', f'{shm.received_frames}'),
+        (
+            'Subscribers',
+            f'{normal.subscriber_count}',
+            f'{shm.subscriber_count}',
+            f'{normal_after_1s.subscriber_count}' if normal_after_1s else 'n/a',
+            f'{shm_after_1s.subscriber_count}' if shm_after_1s else 'n/a',
+        ),
+        (
+            'Expected delivered frames',
+            optional_frames(normal),
+            optional_frames(shm),
+            optional_frames(normal_after_1s) if normal_after_1s else 'n/a',
+            optional_frames(shm_after_1s) if shm_after_1s else 'n/a',
+        ),
+        (
+            'Received frames',
+            f'{normal.received_frames}',
+            f'{shm.received_frames}',
+            f'{normal_after_1s.received_frames}' if normal_after_1s else 'n/a',
+            f'{shm_after_1s.received_frames}' if shm_after_1s else 'n/a',
+        ),
         (
             'Valid frames',
             f'{normal.valid_frames} / {normal.received_frames}',
             f'{shm.valid_frames} / {shm.received_frames}',
+            f'{normal_after_1s.valid_frames} / {normal_after_1s.received_frames}'
+            if normal_after_1s else 'n/a',
+            f'{shm_after_1s.valid_frames} / {shm_after_1s.received_frames}'
+            if shm_after_1s else 'n/a',
         ),
-        ('Mean latency', f'{normal.mean_latency_ms:.3f} ms', f'{shm.mean_latency_ms:.3f} ms'),
+        (
+            'Mean latency',
+            f'{normal.mean_latency_ms:.3f} ms',
+            f'{shm.mean_latency_ms:.3f} ms',
+            optional_float(normal_after_1s.mean_latency_ms, 'ms') if normal_after_1s else 'n/a',
+            optional_float(shm_after_1s.mean_latency_ms, 'ms') if shm_after_1s else 'n/a',
+        ),
         (
             'Median latency',
             f'{normal.median_latency_ms:.3f} ms',
             f'{shm.median_latency_ms:.3f} ms',
+            optional_float(normal_after_1s.median_latency_ms, 'ms') if normal_after_1s else 'n/a',
+            optional_float(shm_after_1s.median_latency_ms, 'ms') if shm_after_1s else 'n/a',
         ),
-        ('Min latency', f'{normal.min_latency_ms:.3f} ms', f'{shm.min_latency_ms:.3f} ms'),
-        ('Max latency', f'{normal.max_latency_ms:.3f} ms', f'{shm.max_latency_ms:.3f} ms'),
+        (
+            'Min latency',
+            f'{normal.min_latency_ms:.3f} ms',
+            f'{shm.min_latency_ms:.3f} ms',
+            optional_float(normal_after_1s.min_latency_ms, 'ms') if normal_after_1s else 'n/a',
+            optional_float(shm_after_1s.min_latency_ms, 'ms') if shm_after_1s else 'n/a',
+        ),
+        (
+            'Max latency',
+            f'{normal.max_latency_ms:.3f} ms',
+            f'{shm.max_latency_ms:.3f} ms',
+            optional_float(normal_after_1s.max_latency_ms, 'ms') if normal_after_1s else 'n/a',
+            optional_float(shm_after_1s.max_latency_ms, 'ms') if shm_after_1s else 'n/a',
+        ),
         (
             'Max latency after first',
             f'{normal.max_latency_after_first_ms:.3f} ms',
             f'{shm.max_latency_after_first_ms:.3f} ms',
+            optional_float(normal_after_1s.max_latency_after_first_ms, 'ms')
+            if normal_after_1s else 'n/a',
+            optional_float(shm_after_1s.max_latency_after_first_ms, 'ms')
+            if shm_after_1s else 'n/a',
         ),
-        ('Receive rate', f'{normal.receive_rate_fps:.1f} fps', f'{shm.receive_rate_fps:.1f} fps'),
+        (
+            'Receive rate',
+            f'{normal.receive_rate_fps:.1f} fps',
+            f'{shm.receive_rate_fps:.1f} fps',
+            optional_rate(normal_after_1s.receive_rate_fps, 'fps') if normal_after_1s else 'n/a',
+            optional_rate(shm_after_1s.receive_rate_fps, 'fps') if shm_after_1s else 'n/a',
+        ),
         (
             'Receive throughput',
             f'{normal.receive_throughput_mib_s:.1f} MiB/s',
             f'{shm.receive_throughput_mib_s:.1f} MiB/s',
+            optional_rate(normal_after_1s.receive_throughput_mib_s, 'MiB/s')
+            if normal_after_1s else 'n/a',
+            optional_rate(shm_after_1s.receive_throughput_mib_s, 'MiB/s')
+            if shm_after_1s else 'n/a',
         ),
         (
             'Wall throughput',
             f'{normal.wall_throughput_mib_s:.1f} MiB/s',
             f'{shm.wall_throughput_mib_s:.1f} MiB/s',
+            'n/a',
+            'n/a',
         ),
         (
             'CPU time / wall time',
             f'{normal.cpu_seconds:.3f} s / {normal.wall_seconds:.3f} s',
             f'{shm.cpu_seconds:.3f} s / {shm.wall_seconds:.3f} s',
+            'n/a',
+            'n/a',
         ),
-        ('CPU percent', f'{normal.cpu_percent:.1f}%', f'{shm.cpu_percent:.1f}%'),
+        ('CPU percent', f'{normal.cpu_percent:.1f}%', f'{shm.cpu_percent:.1f}%', 'n/a', 'n/a'),
         (
             'Max RSS, benchmark process',
             f'{normal.self_max_rss_kib} KiB',
             f'{shm.self_max_rss_kib} KiB',
+            'n/a',
+            'n/a',
         ),
         (
             'Max RSS, child processes',
             f'{normal.children_max_rss_kib} KiB',
             f'{shm.children_max_rss_kib} KiB',
+            'n/a',
+            'n/a',
         ),
     ]
 
     print()
-    headers = ('Metric', 'Normal Python Image subscriber', 'Python ShmSubscriber')
+    headers = (
+        'Metric',
+        'Normal full',
+        'SHM full',
+        'Normal after 1s',
+        'SHM after 1s',
+    )
     column_widths = [
-        max(len(headers[0]), *(len(row[0]) for row in rows)),
-        max(len(headers[1]), *(len(row[1]) for row in rows)),
-        max(len(headers[2]), *(len(row[2]) for row in rows)),
+        max(len(headers[index]), *(len(row[index]) for row in rows))
+        for index in range(len(headers))
     ]
-    print(
-        f'| {headers[0]:<{column_widths[0]}} | '
-        f'{headers[1]:>{column_widths[1]}} | '
-        f'{headers[2]:>{column_widths[2]}} |'
-    )
-    print(
-        f'| {"-" * column_widths[0]} | '
-        f'{"-" * (column_widths[1] - 1)}: | '
-        f'{"-" * (column_widths[2] - 1)}: |'
-    )
-    for metric, normal_value, shm_value in rows:
-        print(
-            f'| {metric:<{column_widths[0]}} | '
-            f'{normal_value:>{column_widths[1]}} | '
-            f'{shm_value:>{column_widths[2]}} |'
-        )
+    print('| ' + ' | '.join(
+        f'{header:<{column_widths[index]}}' if index == 0 else f'{header:>{column_widths[index]}}'
+        for index, header in enumerate(headers)
+    ) + ' |')
+    print('| ' + ' | '.join(
+        '-' * column_widths[index] if index == 0 else f'{"-" * (column_widths[index] - 1)}:'
+        for index in range(len(headers))
+    ) + ' |')
+    for row in rows:
+        print('| ' + ' | '.join(
+            f'{value:<{column_widths[index]}}' if index == 0 else f'{value:>{column_widths[index]}}'
+            for index, value in enumerate(row)
+        ) + ' |')
     print()
 
 
@@ -549,6 +656,8 @@ def run_subscriber_worker(args) -> None:
             subscriber.destroy_node()
         print(json.dumps({
             'latencies_ms': subscriber.latencies_ms,
+            'receive_times': subscriber.receive_times,
+            'valid_samples': subscriber.valid_samples,
             'valid_frames': subscriber.valid_frames,
             'first_receive_time': subscriber.first_receive_time,
             'last_receive_time': subscriber.last_receive_time,
@@ -590,6 +699,13 @@ def main() -> None:
         args.payload_size,
         normal_metrics,
     )
+    normal_summary.after_1s = summarize_phase(
+        normal_results,
+        args.frames,
+        args.payload_size,
+        normal_metrics,
+        cutoff_seconds=1.0,
+    )
 
     shm_metrics, shm_results = run_launch_phase(
         make_container('shm', args.frames, args.payload_size, args.rate_hz),
@@ -605,6 +721,13 @@ def main() -> None:
         args.frames,
         args.payload_size,
         shm_metrics,
+    )
+    shm_summary.after_1s = summarize_phase(
+        shm_results,
+        args.frames,
+        args.payload_size,
+        shm_metrics,
+        cutoff_seconds=1.0,
     )
     print_summary_table(normal_summary, shm_summary)
 
