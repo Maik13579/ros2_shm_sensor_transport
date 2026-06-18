@@ -13,7 +13,7 @@
 
 import pytest
 
-from shm_sensor_transport_py.subscriber import resolve_metadata_topic
+from shm_sensor_transport_py.subscriber import ShmSubscriber, resolve_metadata_topic
 
 
 def test_resolve_metadata_topic_appends_hidden_suffix():
@@ -31,3 +31,29 @@ def test_resolve_metadata_topic_strips_trailing_slashes():
 def test_resolve_metadata_topic_rejects_empty_topic():
     with pytest.raises(ValueError, match="topic must not be empty"):
         resolve_metadata_topic("/")
+
+
+def test_rate_limit_disabled_allows_every_metadata_callback():
+    subscriber = ShmSubscriber.__new__(ShmSubscriber)
+    subscriber._rate_limit_hz = 0.0
+    subscriber._last_callback_time = 1.0
+
+    assert subscriber._rate_limit_allows_callback(1.0)
+    assert subscriber._rate_limit_allows_callback(1.001)
+
+
+def test_rate_limit_allows_first_callback():
+    subscriber = ShmSubscriber.__new__(ShmSubscriber)
+    subscriber._rate_limit_hz = 10.0
+    subscriber._last_callback_time = None
+
+    assert subscriber._rate_limit_allows_callback(1.0)
+
+
+def test_rate_limit_rejects_callbacks_before_period_elapsed():
+    subscriber = ShmSubscriber.__new__(ShmSubscriber)
+    subscriber._rate_limit_hz = 10.0
+    subscriber._last_callback_time = 1.0
+
+    assert not subscriber._rate_limit_allows_callback(1.05)
+    assert subscriber._rate_limit_allows_callback(1.1)

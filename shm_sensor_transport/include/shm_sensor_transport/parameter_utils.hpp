@@ -32,6 +32,7 @@ struct RelayParameters
   bool allow_resize{false};
   bool publish_status{false};
   double status_rate{1.0};
+  double rate_limit_hz{0.0};
   bool use_sensor_data_qos{true};
   bool reliable{false};
   int depth{1};

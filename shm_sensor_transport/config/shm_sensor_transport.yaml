@@ -22,6 +22,7 @@ shm_sensor_transport:
       allow_resize: false
       publish_status: false
       status_rate: 1.0
+      rate_limit_hz: 0.0
     qos:
       use_sensor_data_qos: true
       reliable: false

@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 
 from shm_sensor_transport_interfaces.msg import ShmImage
@@ -40,11 +42,14 @@ class ShmSubscriber:
         callback,
         msg_type=None,
         qos_profile: QoSProfile = None,
+        rate_limit_hz: float = 0.0,
     ) -> None:
         self._node = node
         self._loader = loader
         self._callback = callback
         self._handle = ShmHandle()
+        self._rate_limit_hz = max(0.0, float(rate_limit_hz))
+        self._last_callback_time = None
         self._msg_type = msg_type or getattr(loader, "msg_type", ShmImage)
         self._metadata_topic = resolve_metadata_topic(topic)
         self._qos = qos_profile or QoSProfile(
@@ -72,11 +77,21 @@ class ShmSubscriber:
         self._handle.close()
 
     def _metadata_callback(self, meta) -> None:
+        now = time.monotonic()
+        if not self._rate_limit_allows_callback(now):
+            return
+
         try:
             payload = self._handle.copy_payload(meta)
             decoded = self._loader.from_bytes(payload, meta)
             self._callback(decoded, meta)
+            self._last_callback_time = now
         except ShmFrameInvalid as error:
             self._node.get_logger().debug(f"Dropped invalid shared-memory frame: {error}")
         except Exception as error:  # noqa: BLE001 - callback failures should not kill the subscription
             self._node.get_logger().exception(f"Shared-memory subscriber callback failed: {error}")
+
+    def _rate_limit_allows_callback(self, now: float) -> bool:
+        if self._rate_limit_hz <= 0.0 or self._last_callback_time is None:
+            return True
+        return (now - self._last_callback_time) >= (1.0 / self._rate_limit_hz)

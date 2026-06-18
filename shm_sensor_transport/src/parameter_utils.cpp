@@ -47,6 +47,7 @@ RelayParameters declare_relay_parameters(
   params.allow_resize = node.declare_parameter<bool>("common.allow_resize", false);
   params.publish_status = node.declare_parameter<bool>("common.publish_status", false);
   params.status_rate = node.declare_parameter<double>("common.status_rate", 1.0);
+  params.rate_limit_hz = node.declare_parameter<double>("common.rate_limit_hz", 0.0);
 
   params.use_sensor_data_qos = node.declare_parameter<bool>("qos.use_sensor_data_qos", true);
   params.reliable = node.declare_parameter<bool>("qos.reliable", false);
@@ -60,6 +61,7 @@ RelayParameters declare_relay_parameters(
   params.slot_count = std::max(1, params.slot_count);
   params.depth = std::max(1, params.depth);
   params.status_rate = std::max(0.0, params.status_rate);
+  params.rate_limit_hz = std::max(0.0, params.rate_limit_hz);
   return params;
 }
 

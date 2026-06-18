@@ -59,6 +59,14 @@ ShmPointCloud2RelayComponent::~ShmPointCloud2RelayComponent()
 void ShmPointCloud2RelayComponent::cloud_callback(
   const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg)
 {
+  const auto callback_time = now();
+  if (params_.rate_limit_hz > 0.0 && last_published_time_.has_value()) {
+    const auto min_period = rclcpp::Duration::from_seconds(1.0 / params_.rate_limit_hz);
+    if ((callback_time - last_published_time_.value()) < min_period) {
+      return;
+    }
+  }
+
   const auto payload_size = static_cast<std::uint64_t>(msg->data.size());
   if (!ensure_buffer(payload_size)) {
     ++dropped_frames_;
@@ -92,6 +100,7 @@ void ShmPointCloud2RelayComponent::cloud_callback(
   meta.row_step = msg->row_step;
   meta.is_dense = msg->is_dense;
   metadata_publisher_->publish(meta);
+  last_published_time_ = callback_time;
   ++published_frames_;
 }
 

@@ -58,6 +58,14 @@ ShmImageRelayComponent::~ShmImageRelayComponent()
 
 void ShmImageRelayComponent::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg)
 {
+  const auto callback_time = now();
+  if (params_.rate_limit_hz > 0.0 && last_published_time_.has_value()) {
+    const auto min_period = rclcpp::Duration::from_seconds(1.0 / params_.rate_limit_hz);
+    if ((callback_time - last_published_time_.value()) < min_period) {
+      return;
+    }
+  }
+
   const auto payload_size = static_cast<std::uint64_t>(msg->data.size());
   if (!ensure_buffer(payload_size)) {
     ++dropped_frames_;
@@ -89,6 +97,7 @@ void ShmImageRelayComponent::image_callback(const sensor_msgs::msg::Image::Const
   meta.step = msg->step;
   meta.is_bigendian = msg->is_bigendian != 0U;
   metadata_publisher_->publish(meta);
+  last_published_time_ = callback_time;
   ++published_frames_;
 }
 

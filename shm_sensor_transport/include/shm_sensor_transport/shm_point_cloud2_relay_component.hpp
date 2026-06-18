@@ -14,6 +14,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include <rclcpp/rclcpp.hpp>
@@ -52,6 +53,7 @@ private:
   std::uint64_t published_frames_{0};
   std::uint64_t dropped_frames_{0};
   std::uint64_t oversized_frames_{0};
+  std::optional<rclcpp::Time> last_published_time_;
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
   rclcpp::Publisher<shm_sensor_transport_interfaces::msg::ShmPointCloud2>::SharedPtr
