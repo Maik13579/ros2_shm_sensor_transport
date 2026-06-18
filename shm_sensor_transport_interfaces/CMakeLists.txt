@@ -23,7 +23,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ShmImage.msg"
   "msg/ShmPointCloud2.msg"
   "msg/ShmTransportStatus.msg"
-  "srv/ResetSharedMemory.srv"
   DEPENDENCIES sensor_msgs std_msgs
 )
 
