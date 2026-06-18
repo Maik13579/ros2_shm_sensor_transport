@@ -2,18 +2,20 @@
 
 `shm_sensor_transport` is a ROS 2 transport path for high-bandwidth, intra-host
 sensor streams. It is intended for image and point-cloud pipelines where the
-standard ROS 2 topic remains available, but Python consumers can avoid the cost
-of deserializing large `sensor_msgs/Image` or `sensor_msgs/PointCloud2` messages
-on every callback.
+standard ROS 2 topic remains available, but local C++ and Python consumers can
+move the large payload bytes through shared memory instead of receiving a full
+serialized `sensor_msgs/Image` or `sensor_msgs/PointCloud2` message on every
+callback.
 
 ## Why
 
-Many robotics perception systems are split between C++ sensor drivers and Python
-processing code. ROS 2 keeps that split productive, but very large sensor
-messages can become expensive when they cross into Python through normal rclpy
-subscription paths. The data is already local to the machine, yet it still has to
-move through DDS serialization, Python message construction, and downstream
-conversion before the user callback can work with the pixels or points.
+Many robotics perception systems split sensor drivers, perception nodes, and
+debugging tools across multiple processes on the same host. ROS 2 keeps that
+split productive, but very large sensor messages can become expensive when every
+local consumer receives the full payload through the normal DDS topic path. The
+data is already local to the machine, yet it still has to move through
+serialization, message construction, and downstream conversion before user code
+can work with the pixels or points.
 
 This package keeps normal ROS 2 compatibility and adds a local fast path:
 
@@ -23,22 +25,22 @@ This package keeps normal ROS 2 compatibility and adds a local fast path:
   a fixed-size shared-memory ring buffer.
 - The relay publishes a small ROS 2 metadata message that identifies the shared
   memory object, slot, sequence, and sensor layout.
-- Python subscribers receive the metadata, copy the selected payload bytes from
-  shared memory, validate that the slot was not overwritten during the copy, and
-  pass loader output to user code.
+- Shared-memory subscribers receive the metadata, copy the selected payload
+  bytes from shared memory, validate that the slot was not overwritten during the
+  copy, and pass a reconstructed message or loader output to user code.
 
-The Python side still copies the payload before invoking callbacks. That copy is
-intentional: it gives user code normal object lifetimes while allowing the C++
-writer to keep reusing ring-buffer slots.
+Subscribers still copy the payload before invoking callbacks. That copy is
+intentional: it gives user code normal object lifetimes while allowing the writer
+to keep reusing ring-buffer slots.
 
 ## Architecture
 
 The transport has three ROS 2 packages:
 
-- `shm_sensor_transport_interfaces`: message and service definitions shared by
-  the C++ and Python packages.
-- `shm_sensor_transport`: C++ relay components and shared-memory ring-buffer
-  implementation.
+- `shm_sensor_transport_interfaces`: metadata message definitions shared by the
+  C++ and Python packages.
+- `shm_sensor_transport`: C++ relay components, shared-memory ring-buffer
+  implementation, and C++ subscriber API.
 - `shm_sensor_transport_py`: Python subscriber API, shared-memory handles, and
   loader plugins.
 
@@ -52,6 +54,7 @@ flowchart TD
     relay["ShmImageRelayComponent or ShmPointCloud2RelayComponent"]
     shm[("POSIX shared memory ring buffer")]
     meta["Hidden metadata topic<br/><code>/sensor/topic/_shm</code>"]
+    cpp["C++ ShmSubscriber"]
     python["Python ShmSubscriber"]
     loader["Python loader<br/>ROS msg / NumPy / OpenCV / Open3D / bytes"]
 
@@ -60,6 +63,8 @@ flowchart TD
     driver -- "sensor_msgs/Image or PointCloud2<br/>intra-process when composed together" --> relay
     relay -- "payload bytes" --> shm
     relay -- "small ShmImage or ShmPointCloud2 metadata" --> meta
+    meta --> cpp
+    shm --> cpp
     meta --> python
     shm --> python
     python --> loader
@@ -75,13 +80,13 @@ C++ relay component
   ├── writes msg.data into the next ring-buffer slot
   └── publishes /camera/image_raw/_shm as hidden ShmImage metadata
 
-Python process
+C++ or Python consumer process
   └── ShmSubscriber
         ├── accepts /camera/image_raw and subscribes to /camera/image_raw/_shm
         ├── opens and caches the shared-memory object
-        ├── copies the slot payload into Python-owned memory
+        ├── copies the slot payload into callback-owned memory
         ├── validates slot sequence counters
-        └── calls the user callback with loader output
+        └── calls the user callback with a reconstructed message or loader output
 ```
 
 Point clouds follow the same pattern using `sensor_msgs/PointCloud2` input and
@@ -123,9 +128,9 @@ normal ROS 2 communication:
 ```
 
 Existing ROS 2 tools and remote subscribers can continue to use the original
-topics. Local Python perception code can opt into the shared-memory metadata
-topic when it benefits from avoiding Python-side deserialization of the full
-sensor message.
+topics. Local C++ or Python perception code can opt into the shared-memory
+metadata topic when it benefits from avoiding the normal local transport path for
+the full sensor payload.
 
 ## Usage
 
@@ -167,7 +172,7 @@ ComposableNode(
 ```
 
 For point clouds, use `shm_sensor_transport::ShmPointCloud2RelayComponent` and
-pass `/points` to the Python subscriber.
+pass `/points` to the C++ or Python subscriber.
 
 `common.slot_size_bytes` controls the fixed payload capacity of each shared
 memory slot. Keep it at `0` to infer the size from the first frame, or set it
@@ -175,9 +180,11 @@ explicitly for known fixed-size streams. `common.publish_status` is optional and
 defaults to `false`; set it to `true` and provide `common.status_topic` only when
 you want periodic transport status messages.
 
-Subscribe from Python with the normal sensor topic. `ShmSubscriber` appends
-`/_shm` when needed, and leaves topics that already end with `/_shm` unchanged.
-To reconstruct normal ROS image messages:
+### Python
+
+Subscribe with the normal sensor topic. `ShmSubscriber` appends `/_shm` when
+needed, and leaves topics that already end with `/_shm` unchanged. To reconstruct
+normal ROS image messages:
 
 ```python
 import rclpy
@@ -268,7 +275,7 @@ topic already points at the metadata topic.
 
 ## Benchmarks
 
-The benchmark package compares a normal Python `sensor_msgs/Image` subscriber
+The recorded benchmark compares a normal Python `sensor_msgs/Image` subscriber
 against a Python `ShmSubscriber` fed by a C++ publisher and relay loaded into one
 component container with intra-process communication enabled. Both paths return
 ROS image messages to Python and validate deterministic payload bytes, so the
@@ -288,7 +295,7 @@ payload/rate settings.
 
 - Only intra-host communication is supported.
 - The relay still receives the original ROS 2 sensor message.
-- Python subscribers copy payload bytes before invoking user callbacks.
+- Subscribers copy payload bytes before invoking user callbacks.
 - Overwritten ring-buffer slots are dropped, not recovered.
 - Maximum efficiency requires direct sensor-driver integration with the shared
   memory writer rather than a relay subscribed to an existing topic.
