@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from shm_sensor_transport_py.publisher import ShmPublisher
 from shm_sensor_transport_py.subscriber import ShmSubscriber
 
-__all__ = ["ShmSubscriber"]
+__all__ = ["ShmPublisher", "ShmSubscriber"]

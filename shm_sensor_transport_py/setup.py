@@ -27,7 +27,7 @@ setup(
     zip_safe=True,
     maintainer="Maik Knof",
     maintainer_email="maik.knof@gmx.de",
-    description="Python subscriber API for shared-memory ROS 2 sensor transport.",
+    description="Python publisher and subscriber API for shared-memory ROS 2 sensor transport.",
     license="Apache-2.0",
     tests_require=["pytest"],
 )

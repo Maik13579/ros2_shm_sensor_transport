@@ -23,7 +23,7 @@
 #include <shm_sensor_transport_interfaces/msg/shm_transport_status.hpp>
 
 #include "shm_sensor_transport/parameter_utils.hpp"
-#include "shm_sensor_transport/shm_ring_buffer.hpp"
+#include "shm_sensor_transport/shm_publisher.hpp"
 
 namespace shm_sensor_transport
 {
@@ -42,22 +42,17 @@ private:
   /// @brief Copy one PointCloud2 payload into shared memory and publish metadata.
   void cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
 
-  /// @brief Lazily create or resize the ring buffer for the payload size.
-  bool ensure_buffer(std::uint64_t payload_size);
-
   /// @brief Publish a transport status sample when status publishing is enabled.
   void publish_status(const std::string & message);
 
   RelayParameters params_;
-  ShmRingBuffer ring_;
+  std::unique_ptr<ShmPointCloud2Publisher> shm_publisher_;
   std::uint64_t published_frames_{0};
   std::uint64_t dropped_frames_{0};
   std::uint64_t oversized_frames_{0};
   std::optional<rclcpp::Time> last_published_time_;
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
-  rclcpp::Publisher<shm_sensor_transport_interfaces::msg::ShmPointCloud2>::SharedPtr
-    metadata_publisher_;
   rclcpp::Publisher<shm_sensor_transport_interfaces::msg::ShmTransportStatus>::SharedPtr
     status_publisher_;
   rclcpp::TimerBase::SharedPtr status_timer_;

@@ -2,7 +2,7 @@
 <package format="3">
   <name>shm_sensor_transport_py</name>
   <version>0.1.0</version>
-  <description>Python subscriber API for shared-memory ROS 2 sensor transport.</description>
+  <description>Python publisher and subscriber API for shared-memory ROS 2 sensor transport.</description>
   <maintainer email="maik.knof@gmx.de">Maik Knof</maintainer>
   <license>Apache-2.0</license>
 

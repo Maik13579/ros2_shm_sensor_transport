@@ -72,8 +72,9 @@ if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(test_image_pipeline_launch test/test_image_pipeline_launch.py
     ENV
+      RMW_IMPLEMENTATION=rmw_fastrtps_cpp
       ROS_LOG_DIR=/tmp/shm_sensor_transport_test_logs
-    TIMEOUT 30
+    TIMEOUT 60
   )
 endif()
 

@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import socket
 import threading
 import time
 
 import launch
+import pytest
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
 import rclpy
@@ -158,7 +160,21 @@ def run_phase(mode: str) -> PipelineProbe:
     return probe
 
 
+def require_udp_transport() -> None:
+    try:
+        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_socket.bind(('127.0.0.1', 0))
+    except OSError as error:
+        pytest.skip(f'ROS launch integration requires UDP sockets: {error}')
+    finally:
+        try:
+            udp_socket.close()
+        except UnboundLocalError:
+            pass
+
+
 def test_cpp_component_publishers_to_python_subscribers():
+    require_udp_transport()
     rclpy.init()
     try:
         normal_probe = run_phase('normal')

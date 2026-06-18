@@ -23,7 +23,7 @@
 #include <shm_sensor_transport_interfaces/msg/shm_transport_status.hpp>
 
 #include "shm_sensor_transport/parameter_utils.hpp"
-#include "shm_sensor_transport/shm_ring_buffer.hpp"
+#include "shm_sensor_transport/shm_publisher.hpp"
 
 namespace shm_sensor_transport
 {
@@ -42,21 +42,17 @@ private:
   /// @brief Copy one Image payload into shared memory and publish metadata.
   void image_callback(sensor_msgs::msg::Image::ConstSharedPtr msg);
 
-  /// @brief Lazily create or resize the ring buffer for the payload size.
-  bool ensure_buffer(std::uint64_t payload_size);
-
   /// @brief Publish a transport status sample when status publishing is enabled.
   void publish_status(const std::string & message);
 
   RelayParameters params_;
-  ShmRingBuffer ring_;
+  std::unique_ptr<ShmImagePublisher> shm_publisher_;
   std::uint64_t published_frames_{0};
   std::uint64_t dropped_frames_{0};
   std::uint64_t oversized_frames_{0};
   std::optional<rclcpp::Time> last_published_time_;
 
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription_;
-  rclcpp::Publisher<shm_sensor_transport_interfaces::msg::ShmImage>::SharedPtr metadata_publisher_;
   rclcpp::Publisher<shm_sensor_transport_interfaces::msg::ShmTransportStatus>::SharedPtr
     status_publisher_;
   rclcpp::TimerBase::SharedPtr status_timer_;

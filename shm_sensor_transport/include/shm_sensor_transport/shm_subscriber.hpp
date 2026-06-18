@@ -15,82 +15,28 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
-#include <shm_sensor_transport_interfaces/msg/shm_image.hpp>
-#include <shm_sensor_transport_interfaces/msg/shm_point_cloud2.hpp>
 
 #include "shm_sensor_transport/qos_utils.hpp"
 #include "shm_sensor_transport/shm_handle.hpp"
+#include "shm_sensor_transport/shm_message_traits.hpp"
 
 namespace shm_sensor_transport
 {
-
-/// @brief Return the hidden shared-memory metadata topic for a normal sensor topic.
-std::string resolve_metadata_topic(const std::string & topic);
 
 /// @brief Optional settings for C++ shared-memory subscribers.
 struct ShmSubscriberOptions
 {
   rclcpp::QoS qos{make_metadata_qos(true, false, 1)};
   double rate_limit_hz{0.0};
-};
-
-/// @brief Metadata and decode traits for supported normal sensor message types.
-template<typename SensorMessageT>
-struct ShmMessageTraits;
-
-template<>
-struct ShmMessageTraits<sensor_msgs::msg::Image>
-{
-  using MetadataMessage = shm_sensor_transport_interfaces::msg::ShmImage;
-
-  static std::unique_ptr<sensor_msgs::msg::Image> decode(
-    std::vector<std::uint8_t> payload,
-    const MetadataMessage & meta)
-  {
-    auto msg = std::make_unique<sensor_msgs::msg::Image>();
-    msg->header = meta.header;
-    msg->height = meta.height;
-    msg->width = meta.width;
-    msg->encoding = meta.encoding;
-    msg->is_bigendian = meta.is_bigendian ? 1U : 0U;
-    msg->step = meta.step;
-    msg->data = std::move(payload);
-    return msg;
-  }
-};
-
-template<>
-struct ShmMessageTraits<sensor_msgs::msg::PointCloud2>
-{
-  using MetadataMessage = shm_sensor_transport_interfaces::msg::ShmPointCloud2;
-
-  static std::unique_ptr<sensor_msgs::msg::PointCloud2> decode(
-    std::vector<std::uint8_t> payload,
-    const MetadataMessage & meta)
-  {
-    auto msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
-    msg->header = meta.header;
-    msg->height = meta.height;
-    msg->width = meta.width;
-    msg->fields = meta.fields;
-    msg->is_bigendian = meta.is_bigendian;
-    msg->point_step = meta.point_step;
-    msg->row_step = meta.row_step;
-    msg->is_dense = meta.is_dense;
-    msg->data = std::move(payload);
-    return msg;
-  }
 };
 
 /// @brief Subscribe to shared-memory metadata and invoke callbacks with normal sensor messages.
