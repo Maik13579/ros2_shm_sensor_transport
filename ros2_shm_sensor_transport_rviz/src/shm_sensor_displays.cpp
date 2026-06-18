@@ -19,6 +19,7 @@
 #include <utility>
 
 #include <pluginlib/class_list_macros.hpp>
+#include <rviz_common/properties/property.hpp>
 #include <rviz_common/properties/status_property.hpp>
 #include <shm_sensor_transport_interfaces/msg/shm_image.hpp>
 #include <shm_sensor_transport_interfaces/msg/shm_point_cloud2.hpp>
@@ -44,6 +45,14 @@ void setStatusError(rviz_common::Display & display, const char * message)
     QString("Error subscribing: ") + message);
 }
 
+void setShmDefaultQos(rviz_common::properties::RosTopicProperty * topic_property)
+{
+  topic_property->subProp("Depth")->setValue(1);
+  topic_property->subProp("History Policy")->setValue("Keep Last");
+  topic_property->subProp("Reliability Policy")->setValue("Best Effort");
+  topic_property->subProp("Durability Policy")->setValue("Volatile");
+}
+
 }  // namespace
 
 ShmImageDisplay::ShmImageDisplay()
@@ -53,6 +62,7 @@ ShmImageDisplay::ShmImageDisplay()
     metadataMessageType<shm_sensor_transport_interfaces::msg::ShmImage>();
   topic_property_->setMessageType(message_type);
   topic_property_->setDescription(message_type + " topic to subscribe to.");
+  setShmDefaultQos(topic_property_);
 }
 
 ShmImageDisplay::~ShmImageDisplay()
@@ -111,6 +121,7 @@ ShmPointCloud2Display::ShmPointCloud2Display()
     metadataMessageType<shm_sensor_transport_interfaces::msg::ShmPointCloud2>();
   topic_property_->setMessageType(message_type);
   topic_property_->setDescription(message_type + " topic to subscribe to.");
+  setShmDefaultQos(topic_property_);
 }
 
 ShmPointCloud2Display::~ShmPointCloud2Display()
