@@ -6,6 +6,7 @@
     <description>
       Displays sensor_msgs/Image data transported through shm_sensor_transport shared memory.
     </description>
+    <message_type>shm_sensor_transport_interfaces/msg/ShmImage</message_type>
   </class>
   <class
     name="ros2_shm_sensor_transport_rviz/ShmPointCloud2"
@@ -14,5 +15,6 @@
     <description>
       Displays sensor_msgs/PointCloud2 data transported through shm_sensor_transport shared memory.
     </description>
+    <message_type>shm_sensor_transport_interfaces/msg/ShmPointCloud2</message_type>
   </class>
 </library>
