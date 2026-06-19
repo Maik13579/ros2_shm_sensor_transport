@@ -21,7 +21,7 @@ TEST(PluginlibLoads, ShmDisplays)
     "rviz_common", "rviz_common::Display");
 
   EXPECT_NO_THROW(
-    loader.loadLibraryForClass("ros2_shm_sensor_transport_rviz/ShmImage"));
+    loader.loadLibraryForClass("shm_sensor_transport_rviz/ShmImage"));
   EXPECT_NO_THROW(
-    loader.loadLibraryForClass("ros2_shm_sensor_transport_rviz/ShmPointCloud2"));
+    loader.loadLibraryForClass("shm_sensor_transport_rviz/ShmPointCloud2"));
 }

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>ros2_shm_sensor_transport_rviz</name>
+  <name>shm_sensor_transport_rviz</name>
   <version>0.1.0</version>
   <description>RViz display plugins for shared-memory sensor transport streams.</description>
   <maintainer email="maik.knof@gmx.de">Maik Knof</maintainer>

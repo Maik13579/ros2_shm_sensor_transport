@@ -11,8 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "ros2_shm_sensor_transport_rviz/shm_image_display.hpp"
-#include "ros2_shm_sensor_transport_rviz/shm_point_cloud2_display.hpp"
+#include "shm_sensor_transport_rviz/shm_image_display.hpp"
+#include "shm_sensor_transport_rviz/shm_point_cloud2_display.hpp"
 
 #include <memory>
 #include <string>
@@ -26,7 +26,7 @@
 
 #include "shm_sensor_transport/qos_utils.hpp"
 
-namespace ros2_shm_sensor_transport_rviz
+namespace shm_sensor_transport_rviz
 {
 namespace
 {
@@ -173,12 +173,12 @@ void ShmPointCloud2Display::unsubscribe()
   shm_subscription_.reset();
 }
 
-}  // namespace ros2_shm_sensor_transport_rviz
+}  // namespace shm_sensor_transport_rviz
 
 PLUGINLIB_EXPORT_CLASS(
-  ros2_shm_sensor_transport_rviz::ShmImageDisplay,
+  shm_sensor_transport_rviz::ShmImageDisplay,
   rviz_common::Display)
 
 PLUGINLIB_EXPORT_CLASS(
-  ros2_shm_sensor_transport_rviz::ShmPointCloud2Display,
+  shm_sensor_transport_rviz::ShmPointCloud2Display,
   rviz_common::Display)

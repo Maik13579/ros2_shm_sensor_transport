@@ -15,25 +15,25 @@
 
 #include <memory>
 
-#include <rviz_default_plugins/displays/image/image_display.hpp>
+#include <rviz_default_plugins/displays/pointcloud/point_cloud2_display.hpp>
 
 #include "shm_sensor_transport/shm_subscriber.hpp"
 
-namespace ros2_shm_sensor_transport_rviz
+namespace shm_sensor_transport_rviz
 {
 
-class ShmImageDisplay : public rviz_default_plugins::displays::ImageDisplay
+class ShmPointCloud2Display : public rviz_default_plugins::displays::PointCloud2Display
 {
 public:
-  ShmImageDisplay();
-  ~ShmImageDisplay() override;
+  ShmPointCloud2Display();
+  ~ShmPointCloud2Display() override;
 
 protected:
   void subscribe() override;
   void unsubscribe() override;
 
 private:
-  std::shared_ptr<shm_sensor_transport::ShmImageSubscriber> shm_subscription_;
+  std::shared_ptr<shm_sensor_transport::ShmPointCloud2Subscriber> shm_subscription_;
 };
 
-}  // namespace ros2_shm_sensor_transport_rviz
+}  // namespace shm_sensor_transport_rviz
