@@ -44,6 +44,7 @@ ament_target_dependencies(${PROJECT_NAME}
 )
 
 add_library(${PROJECT_NAME}_components SHARED
+  src/shm_compressed_image_relay_component.cpp
   src/shm_image_relay_component.cpp
   src/shm_point_cloud2_relay_component.cpp
   src/register_components.cpp
@@ -58,6 +59,7 @@ ament_target_dependencies(${PROJECT_NAME}_components
 )
 
 rclcpp_components_register_nodes(${PROJECT_NAME}_components
+  "shm_sensor_transport::ShmCompressedImageRelayComponent"
   "shm_sensor_transport::ShmImageRelayComponent"
   "shm_sensor_transport::ShmPointCloud2RelayComponent"
 )
@@ -89,7 +91,10 @@ if(BUILD_TESTING)
   target_link_libraries(test_shm_subscriber ${PROJECT_NAME})
 
   ament_add_gtest(test_shm_publisher test/test_shm_publisher.cpp)
-  target_link_libraries(test_shm_publisher ${PROJECT_NAME})
+  target_link_libraries(test_shm_publisher ${PROJECT_NAME} ${PROJECT_NAME}_components)
+  set_tests_properties(test_shm_publisher PROPERTIES
+    ENVIRONMENT "RMW_IMPLEMENTATION=rmw_fastrtps_cpp;ROS_LOG_DIR=/tmp/shm_sensor_transport_test_logs"
+  )
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)

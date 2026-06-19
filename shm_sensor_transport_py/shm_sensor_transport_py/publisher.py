@@ -17,8 +17,8 @@ import struct
 from typing import Optional
 
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
-from sensor_msgs.msg import Image, PointCloud2
-from shm_sensor_transport_interfaces.msg import ShmImage, ShmPointCloud2
+from sensor_msgs.msg import CompressedImage, Image, PointCloud2
+from shm_sensor_transport_interfaces.msg import ShmCompressedImage, ShmImage, ShmPointCloud2
 
 from shm_sensor_transport_py.metadata import (
     SHM_HEADER_SIZE,
@@ -147,7 +147,7 @@ class _RingBuffer:
 
 
 class ShmPublisher:
-    """Publish Image or PointCloud2 messages through a shared-memory ring."""
+    """Publish supported sensor messages through a shared-memory ring."""
 
     def __init__(
         self,
@@ -200,7 +200,11 @@ class ShmPublisher:
 
     def publish(self, msg) -> bool:
         msg_type = self._resolve_msg_type(msg)
-        metadata_type = ShmImage if msg_type is Image else ShmPointCloud2
+        metadata_type = {
+            CompressedImage: ShmCompressedImage,
+            Image: ShmImage,
+            PointCloud2: ShmPointCloud2,
+        }[msg_type]
         if self._publisher is None:
             self._publisher = self._node.create_publisher(
                 metadata_type, self._metadata_topic, self._qos
@@ -218,8 +222,11 @@ class ShmPublisher:
 
     def _resolve_msg_type(self, msg):
         msg_type = self._msg_type or type(msg)
-        if msg_type not in (Image, PointCloud2):
-            raise TypeError("ShmPublisher only supports sensor_msgs.msg.Image and PointCloud2")
+        if msg_type not in (CompressedImage, Image, PointCloud2):
+            raise TypeError(
+                "ShmPublisher only supports sensor_msgs.msg.CompressedImage, Image, "
+                "and PointCloud2"
+            )
         if not isinstance(msg, msg_type):
             raise TypeError(f"expected {msg_type.__name__}, got {type(msg).__name__}")
         return msg_type
@@ -245,7 +252,10 @@ class ShmPublisher:
         slot_size: int,
         payload_size: int,
     ):
-        if isinstance(msg, Image):
+        if isinstance(msg, CompressedImage):
+            meta = ShmCompressedImage()
+            meta.format = msg.format
+        elif isinstance(msg, Image):
             meta = ShmImage()
             meta.encoding = msg.encoding
             meta.step = msg.step
@@ -264,7 +274,8 @@ class ShmPublisher:
         meta.slot_size = slot_size
         meta.payload_offset = payload_offset
         meta.payload_size = payload_size
-        meta.height = msg.height
-        meta.width = msg.width
-        meta.is_bigendian = bool(msg.is_bigendian)
+        if not isinstance(msg, CompressedImage):
+            meta.height = msg.height
+            meta.width = msg.width
+            meta.is_bigendian = bool(msg.is_bigendian)
         return meta

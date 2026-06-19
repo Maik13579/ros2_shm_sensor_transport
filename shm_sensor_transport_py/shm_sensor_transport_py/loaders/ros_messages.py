@@ -12,10 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sensor_msgs.msg import Image, PointCloud2
-from shm_sensor_transport_interfaces.msg import ShmImage, ShmPointCloud2
+from sensor_msgs.msg import CompressedImage, Image, PointCloud2
+from shm_sensor_transport_interfaces.msg import ShmCompressedImage, ShmImage, ShmPointCloud2
 
 from shm_sensor_transport_py.loaders.base import Loader
+
+
+class RosCompressedImageLoader(Loader):
+    """Reconstruct a sensor_msgs.msg.CompressedImage from SHM metadata and payload bytes."""
+
+    msg_type = ShmCompressedImage
+
+    def from_bytes(self, data: bytes, meta):
+        msg = CompressedImage()
+        msg.header = meta.header
+        msg.format = meta.format
+        msg.data = data
+        return msg
 
 
 class RosImageLoader(Loader):

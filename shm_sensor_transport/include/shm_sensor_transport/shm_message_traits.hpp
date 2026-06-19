@@ -19,8 +19,10 @@
 #include <utility>
 #include <vector>
 
+#include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <shm_sensor_transport_interfaces/msg/shm_compressed_image.hpp>
 #include <shm_sensor_transport_interfaces/msg/shm_image.hpp>
 #include <shm_sensor_transport_interfaces/msg/shm_point_cloud2.hpp>
 
@@ -35,6 +37,47 @@ std::string resolve_metadata_topic(const std::string & topic);
 /// @brief Metadata encode/decode traits for supported normal sensor message types.
 template<typename SensorMessageT>
 struct ShmMessageTraits;
+
+template<>
+struct ShmMessageTraits<sensor_msgs::msg::CompressedImage>
+{
+  using MetadataMessage = shm_sensor_transport_interfaces::msg::ShmCompressedImage;
+
+  static const std::vector<std::uint8_t> & payload(
+    const sensor_msgs::msg::CompressedImage & msg)
+  {
+    return msg.data;
+  }
+
+  static MetadataMessage encode(
+    const sensor_msgs::msg::CompressedImage & msg,
+    const ShmRingBuffer & ring,
+    const WriteResult & write)
+  {
+    MetadataMessage meta;
+    meta.header = msg.header;
+    meta.shm_name = ring.name();
+    meta.slot_index = write.slot_index;
+    meta.sequence = write.sequence;
+    meta.slot_offset = write.payload_offset;
+    meta.slot_size = write.slot_size;
+    meta.payload_offset = write.payload_offset;
+    meta.payload_size = write.payload_size;
+    meta.format = msg.format;
+    return meta;
+  }
+
+  static std::unique_ptr<sensor_msgs::msg::CompressedImage> decode(
+    std::vector<std::uint8_t> payload,
+    const MetadataMessage & meta)
+  {
+    auto msg = std::make_unique<sensor_msgs::msg::CompressedImage>();
+    msg->header = meta.header;
+    msg->format = meta.format;
+    msg->data = std::move(payload);
+    return msg;
+  }
+};
 
 template<>
 struct ShmMessageTraits<sensor_msgs::msg::Image>

@@ -1,9 +1,10 @@
 # shm_sensor_transport
 
 `shm_sensor_transport` is a ROS 2 transport path for high-bandwidth, intra-host
-sensor streams. It is intended for image and point-cloud pipelines where local
-C++ and Python processes can move large payload bytes through shared memory
-instead of sending a full serialized `sensor_msgs/Image` or
+sensor streams. It is intended for image, compressed-image, and point-cloud
+pipelines where local C++ and Python processes can move large payload bytes
+through shared memory instead of sending a full serialized
+`sensor_msgs/Image`, `sensor_msgs/CompressedImage`, or
 `sensor_msgs/PointCloud2` message on every callback.
 
 ## Why
@@ -46,9 +47,9 @@ memory object:
 
 ```mermaid
 flowchart LR
-    pub["ShmPublisher<br/>Image or PointCloud2"]
+    pub["ShmPublisher<br/>Image, CompressedImage, or PointCloud2"]
     shm[("POSIX shared memory<br/>payload ring")]
-    meta["/_shm metadata topic<br/>ShmImage or ShmPointCloud2"]
+    meta["/_shm metadata topic<br/>ShmImage, ShmCompressedImage, or ShmPointCloud2"]
     sub["ShmSubscriber<br/>reconstructed ROS message"]
 
     pub -- "writes msg.data" --> shm
@@ -60,7 +61,7 @@ flowchart LR
 ```text
 Sensor driver process
   └── ShmPublisher
-        ├── accepts sensor_msgs/Image or sensor_msgs/PointCloud2
+        ├── accepts sensor_msgs/Image, sensor_msgs/CompressedImage, or sensor_msgs/PointCloud2
         ├── writes msg.data into the next ring-buffer slot
         └── publishes /camera/image_raw/_shm as hidden ShmImage metadata
 
@@ -90,8 +91,11 @@ Relay component
   └── publishes /camera/image_raw/_shm as hidden ShmImage metadata
 ```
 
-Point clouds follow the same pattern using `sensor_msgs/PointCloud2` input and
-`ShmPointCloud2` metadata.
+Compressed images and point clouds follow the same pattern using
+`sensor_msgs/CompressedImage` with `ShmCompressedImage` metadata and
+`sensor_msgs/PointCloud2` with `ShmPointCloud2` metadata. Compressed image
+payloads stay compressed: the transport preserves `format` and moves `data`
+bytes through shared memory unchanged.
 
 Publishers derive the metadata topic from the normal topic as `<topic>/_shm`.
 This keeps metadata on a predictable hidden ROS topic.
@@ -123,13 +127,16 @@ topics:
 ```text
 /camera/image_raw/_shm   shm_sensor_transport_interfaces/ShmImage
 
+/camera/image_raw/compressed/_shm
+                         shm_sensor_transport_interfaces/ShmCompressedImage
+
 /points/_shm             shm_sensor_transport_interfaces/ShmPointCloud2
 ```
 
 Direct `ShmPublisher` does not publish the original `sensor_msgs/Image` or
-`sensor_msgs/PointCloud2` topic. If you need the normal sensor topic to remain
-available for ROS tools or remote subscribers, publish it separately or use a
-relay with an existing publisher.
+`sensor_msgs/CompressedImage` or `sensor_msgs/PointCloud2` topic. If you need
+the normal sensor topic to remain available for ROS tools or remote subscribers,
+publish it separately or use a relay with an existing publisher.
 
 ## Usage
 
@@ -143,8 +150,8 @@ maps it to a hidden metadata topic:
 
 ### Python
 
-Publish a normal ROS image or point-cloud message directly through shared
-memory:
+Publish a normal ROS image, compressed-image, or point-cloud message directly
+through shared memory:
 
 ```python
 from sensor_msgs.msg import Image
@@ -206,6 +213,21 @@ sub = ShmSubscriber(
 )
 ```
 
+Use `RosCompressedImageLoader` for `sensor_msgs/CompressedImage` messages. It
+reconstructs `header`, `format`, and the original compressed `data` bytes
+without decoding or recompressing them:
+
+```python
+from shm_sensor_transport_py.loaders import RosCompressedImageLoader
+
+sub = ShmSubscriber(
+    node=node,
+    topic='/camera/image_raw/compressed',
+    loader=RosCompressedImageLoader(),
+    callback=on_compressed_image,
+)
+```
+
 Other loaders are available when user code wants NumPy arrays, OpenCV-style image
 arrays, Open3D point clouds, or raw bytes instead of ROS message objects.
 
@@ -264,23 +286,26 @@ private:
 };
 ```
 
-For point clouds, use `shm_sensor_transport::ShmPointCloud2Subscriber` with a
+For compressed images, use `shm_sensor_transport::ShmCompressedImageSubscriber`
+with a `sensor_msgs::msg::CompressedImage::UniquePtr` callback. For point
+clouds, use `shm_sensor_transport::ShmPointCloud2Subscriber` with a
 `sensor_msgs::msg::PointCloud2::UniquePtr` callback. The C++ subscriber accepts
-the same normal topic names as the Python API and also appends `/_shm` unless the
-topic already points at the metadata topic.
+the same normal topic names as the Python API and also appends `/_shm` unless
+the topic already points at the metadata topic.
 
 ## Relay Components
 
 Use a relay when an existing sensor driver already publishes
-`sensor_msgs/Image` or `sensor_msgs/PointCloud2` and you want to add the
-shared-memory fast path without modifying that driver. The original sensor topic
-continues to come from the existing publisher; the relay only subscribes to it
-and publishes shared-memory metadata.
+`sensor_msgs/Image`, `sensor_msgs/CompressedImage`, or
+`sensor_msgs/PointCloud2` and you want to add the shared-memory fast path
+without modifying that driver. The original sensor topic continues to come from
+the existing publisher; the relay only subscribes to it and publishes
+shared-memory metadata.
 
 ```mermaid
 flowchart LR
-    sensor["Sensor driver component<br/>normal Image or PointCloud2 publisher"]
-    relay["ShmImageRelayComponent<br/>or ShmPointCloud2RelayComponent"]
+    sensor["Sensor driver component<br/>normal sensor publisher"]
+    relay["ShmImageRelayComponent<br/>ShmCompressedImageRelayComponent<br/>or ShmPointCloud2RelayComponent"]
     shm[("POSIX shared memory<br/>payload ring")]
     meta["/_shm metadata topic"]
     sub["ShmSubscriber"]
@@ -319,8 +344,11 @@ ComposableNode(
 )
 ```
 
-For point clouds, use `shm_sensor_transport::ShmPointCloud2RelayComponent` and
-pass `/points` to the C++ or Python subscriber.
+For compressed images, use
+`shm_sensor_transport::ShmCompressedImageRelayComponent` and pass
+`/camera/image_raw/compressed` to the C++ or Python subscriber. For point clouds,
+use `shm_sensor_transport::ShmPointCloud2RelayComponent` and pass `/points` to
+the C++ or Python subscriber.
 
 `common.slot_size_bytes` controls the fixed payload capacity of each shared
 memory slot. Keep it at `0` to infer the size from the first frame, or set it

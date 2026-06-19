@@ -23,9 +23,11 @@
 #include <vector>
 
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
+#include "shm_sensor_transport/shm_compressed_image_relay_component.hpp"
 #include "shm_sensor_transport/shm_handle.hpp"
 #include "shm_sensor_transport/shm_name.hpp"
 #include "shm_sensor_transport/shm_publisher.hpp"
@@ -136,6 +138,44 @@ TEST_F(RclcppFixture, ImagePublisherPublishesReadableMetadata)
   EXPECT_EQ(handle.copy_payload(*meta), (std::vector<std::uint8_t>{1, 2, 3, 4}));
 }
 
+TEST_F(RclcppFixture, CompressedImagePublisherPublishesReadableMetadata)
+{
+  auto publisher_node = std::make_shared<rclcpp::Node>("test_shm_compressed_image_publisher");
+  auto subscriber_node =
+    std::make_shared<rclcpp::Node>("test_shm_compressed_image_metadata_subscriber");
+
+  shm_sensor_transport::ShmPublisherOptions options;
+  options.shm_name = test_name("_compressed_image");
+  options.slot_count = 2;
+  options.slot_size_bytes = 32;
+  options.qos = rclcpp::QoS(1).reliable();
+  shm_sensor_transport::ShmCompressedImagePublisher publisher(
+    publisher_node.get(), "/camera/image_raw/compressed", options);
+
+  shm_sensor_transport_interfaces::msg::ShmCompressedImage::SharedPtr meta;
+  const auto subscription =
+    subscriber_node->create_subscription<
+    shm_sensor_transport_interfaces::msg::ShmCompressedImage>(
+    publisher.metadata_topic(), options.qos,
+    [&meta](shm_sensor_transport_interfaces::msg::ShmCompressedImage::SharedPtr msg) {
+      meta = std::move(msg);
+    });
+  (void)subscription;
+
+  sensor_msgs::msg::CompressedImage image;
+  image.header.frame_id = "camera";
+  image.format = "jpeg";
+  image.data = {0xff, 0xd8, 1, 2, 0xff, 0xd9};
+
+  ASSERT_TRUE(publisher.publish(image));
+  ASSERT_TRUE(spin_until_metadata<shm_sensor_transport_interfaces::msg::ShmCompressedImage>(
+    *publisher_node, *subscriber_node, meta));
+  EXPECT_EQ(meta->format, "jpeg");
+
+  shm_sensor_transport::ShmHandle handle;
+  EXPECT_EQ(handle.copy_payload(*meta), (std::vector<std::uint8_t>{0xff, 0xd8, 1, 2, 0xff, 0xd9}));
+}
+
 TEST_F(RclcppFixture, PointCloud2PublisherPublishesReadableMetadata)
 {
   auto publisher_node = std::make_shared<rclcpp::Node>("test_shm_cloud_publisher");
@@ -222,6 +262,50 @@ TEST_F(RclcppFixture, ImagePublisherFeedsShmSubscriberCallback)
   EXPECT_EQ(received->header.frame_id, "camera");
   EXPECT_EQ(received->data, (std::vector<std::uint8_t>{10, 11, 12, 13}));
   EXPECT_EQ(received_meta.payload_size, 4U);
+}
+
+TEST_F(RclcppFixture, CompressedImagePublisherFeedsShmSubscriberCallback)
+{
+  auto publisher_node = std::make_shared<rclcpp::Node>("test_shm_compressed_image_direct_pub");
+  auto subscriber_node = std::make_shared<rclcpp::Node>("test_shm_compressed_image_direct_sub");
+
+  shm_sensor_transport::ShmPublisherOptions publisher_options;
+  publisher_options.shm_name = test_name("_direct_compressed_image");
+  publisher_options.slot_count = 2;
+  publisher_options.slot_size_bytes = 32;
+  publisher_options.qos = rclcpp::QoS(1).reliable();
+  shm_sensor_transport::ShmCompressedImagePublisher publisher(
+    publisher_node.get(), "/direct/image_raw/compressed", publisher_options);
+
+  sensor_msgs::msg::CompressedImage::UniquePtr received;
+  shm_sensor_transport_interfaces::msg::ShmCompressedImage received_meta;
+  shm_sensor_transport::ShmSubscriberOptions subscriber_options;
+  subscriber_options.qos = publisher_options.qos;
+  shm_sensor_transport::ShmCompressedImageSubscriber subscriber(
+    subscriber_node.get(),
+    "/direct/image_raw/compressed",
+    [&received, &received_meta](
+      sensor_msgs::msg::CompressedImage::UniquePtr msg,
+      const shm_sensor_transport_interfaces::msg::ShmCompressedImage & meta)
+    {
+      received = std::move(msg);
+      received_meta = meta;
+    },
+    subscriber_options);
+
+  sensor_msgs::msg::CompressedImage image;
+  image.header.frame_id = "camera";
+  image.format = "png";
+  image.data = {137, 80, 78, 71, 1, 2};
+
+  ASSERT_TRUE(publisher.publish(image));
+  ASSERT_TRUE(spin_until(*publisher_node, *subscriber_node, [&received]() {
+      return static_cast<bool>(received);
+  }));
+  EXPECT_EQ(received->header.frame_id, "camera");
+  EXPECT_EQ(received->format, "png");
+  EXPECT_EQ(received->data, (std::vector<std::uint8_t>{137, 80, 78, 71, 1, 2}));
+  EXPECT_EQ(received_meta.payload_size, 6U);
 }
 
 TEST_F(RclcppFixture, PointCloud2PublisherFeedsShmSubscriberCallback)
@@ -360,4 +444,18 @@ TEST_F(RclcppFixture, UnlinksSharedMemoryOnDestruction)
     ASSERT_EQ(::access(shm_path.c_str(), F_OK), 0);
   }
   EXPECT_NE(::access(shm_path.c_str(), F_OK), 0);
+}
+
+TEST_F(RclcppFixture, CompressedImageRelayComponentConstructs)
+{
+  EXPECT_NO_THROW({
+    rclcpp::NodeOptions options;
+    options.parameter_overrides({
+      rclcpp::Parameter("common.input_topic", "/camera/image_raw/compressed"),
+      rclcpp::Parameter("common.publish_status", false),
+    });
+    auto component =
+    std::make_shared<shm_sensor_transport::ShmCompressedImageRelayComponent>(options);
+    EXPECT_EQ(component->get_name(), std::string("shm_compressed_image_relay"));
+  });
 }

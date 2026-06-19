@@ -13,8 +13,10 @@
 
 #include <rclcpp_components/register_node_macro.hpp>
 
+#include "shm_sensor_transport/shm_compressed_image_relay_component.hpp"
 #include "shm_sensor_transport/shm_image_relay_component.hpp"
 #include "shm_sensor_transport/shm_point_cloud2_relay_component.hpp"
 
+RCLCPP_COMPONENTS_REGISTER_NODE(shm_sensor_transport::ShmCompressedImageRelayComponent)
 RCLCPP_COMPONENTS_REGISTER_NODE(shm_sensor_transport::ShmImageRelayComponent)
 RCLCPP_COMPONENTS_REGISTER_NODE(shm_sensor_transport::ShmPointCloud2RelayComponent)

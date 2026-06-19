@@ -16,6 +16,8 @@
 #include <stdexcept>
 #include <vector>
 
+#include <sensor_msgs/msg/compressed_image.hpp>
+
 #include "shm_sensor_transport/shm_subscriber.hpp"
 
 TEST(ShmSubscriber, ResolvesMetadataTopic)
@@ -52,6 +54,22 @@ TEST(ShmSubscriber, DecodesImageMetadataToRosMessage)
   EXPECT_EQ(msg->encoding, "mono8");
   EXPECT_EQ(msg->step, 3U);
   EXPECT_EQ(msg->data, (std::vector<std::uint8_t>{1, 2, 3, 4, 5, 6}));
+}
+
+TEST(ShmSubscriber, DecodesCompressedImageMetadataToRosMessage)
+{
+  shm_sensor_transport_interfaces::msg::ShmCompressedImage meta;
+  meta.header.frame_id = "camera";
+  meta.format = "jpeg";
+
+  std::vector<std::uint8_t> payload{0xff, 0xd8, 1, 2, 0xff, 0xd9};
+  const auto msg =
+    shm_sensor_transport::ShmMessageTraits<sensor_msgs::msg::CompressedImage>::decode(
+    std::move(payload), meta);
+
+  EXPECT_EQ(msg->header.frame_id, "camera");
+  EXPECT_EQ(msg->format, "jpeg");
+  EXPECT_EQ(msg->data, (std::vector<std::uint8_t>{0xff, 0xd8, 1, 2, 0xff, 0xd9}));
 }
 
 TEST(ShmSubscriber, DecodesPointCloud2MetadataToRosMessage)

@@ -14,9 +14,13 @@
 import os
 
 import pytest
-from sensor_msgs.msg import Image, PointCloud2
+from sensor_msgs.msg import CompressedImage, Image, PointCloud2
 
-from shm_sensor_transport_py.loaders import RosImageLoader, RosPointCloud2Loader
+from shm_sensor_transport_py.loaders import (
+    RosCompressedImageLoader,
+    RosImageLoader,
+    RosPointCloud2Loader,
+)
 from shm_sensor_transport_py.publisher import ShmPublisher
 from shm_sensor_transport_py.shm_handle import ShmHandle
 from shm_sensor_transport_py.subscriber import ShmSubscriber
@@ -86,6 +90,29 @@ def test_image_publisher_writes_payload_readable_by_handle():
     publisher.close()
 
 
+def test_compressed_image_publisher_writes_payload_readable_by_handle():
+    node = FakeNode()
+    publisher = ShmPublisher(
+        node,
+        "/camera/image_raw/compressed",
+        msg_type=CompressedImage,
+        slot_count=2,
+        slot_size_bytes=32,
+        shm_name=f"/ros2_shm_py_compressed_image_{os.getpid()}",
+    )
+
+    image = CompressedImage()
+    image.header.frame_id = "camera"
+    image.format = "jpeg"
+    image.data = [255, 216, 1, 2, 255, 217]
+
+    assert publisher.publish(image)
+    assert ShmHandle().copy_payload(publisher.last_metadata) == bytes([255, 216, 1, 2, 255, 217])
+    assert publisher.last_metadata.format == "jpeg"
+    assert node.publishers[0][1] == "/camera/image_raw/compressed/_shm"
+    publisher.close()
+
+
 def test_image_publisher_feeds_subscriber_callback():
     node = FakeNode()
     publisher = ShmPublisher(
@@ -119,6 +146,41 @@ def test_image_publisher_feeds_subscriber_callback():
     assert received[0][0].header.frame_id == "camera"
     assert bytes(received[0][0].data) == bytes([10, 11, 12, 13])
     assert received[0][1].payload_size == 4
+    subscriber.close()
+    publisher.close()
+
+
+def test_compressed_image_publisher_feeds_subscriber_callback():
+    node = FakeNode()
+    publisher = ShmPublisher(
+        node,
+        "/camera/direct_compressed_image",
+        msg_type=CompressedImage,
+        slot_count=2,
+        slot_size_bytes=32,
+        shm_name=f"/ros2_shm_py_direct_compressed_image_{os.getpid()}",
+    )
+    received = []
+    subscriber = ShmSubscriber(
+        node=node,
+        topic="/camera/direct_compressed_image",
+        loader=RosCompressedImageLoader(),
+        callback=lambda msg, meta: received.append((msg, meta)),
+    )
+
+    image = CompressedImage()
+    image.header.frame_id = "camera"
+    image.format = "png"
+    image.data = [137, 80, 78, 71, 1, 2]
+
+    assert publisher.publish(image)
+    subscriber._metadata_callback(publisher.last_metadata)
+
+    assert len(received) == 1
+    assert received[0][0].header.frame_id == "camera"
+    assert received[0][0].format == "png"
+    assert bytes(received[0][0].data) == bytes([137, 80, 78, 71, 1, 2])
+    assert received[0][1].payload_size == 6
     subscriber.close()
     publisher.close()
 

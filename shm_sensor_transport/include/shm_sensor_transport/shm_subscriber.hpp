@@ -22,6 +22,7 @@
 #include <utility>
 
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
@@ -129,6 +130,7 @@ private:
   typename rclcpp::Subscription<MetadataMessage>::SharedPtr subscription_;
 };
 
+using ShmCompressedImageSubscriber = ShmSubscriber<sensor_msgs::msg::CompressedImage>;
 using ShmImageSubscriber = ShmSubscriber<sensor_msgs::msg::Image>;
 using ShmPointCloud2Subscriber = ShmSubscriber<sensor_msgs::msg::PointCloud2>;
 

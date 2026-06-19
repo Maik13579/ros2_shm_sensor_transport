@@ -21,6 +21,7 @@ from shm_sensor_transport_py.loaders import (
     NumpyImageLoader,
     PointCloud2NumpyLoader,
     RawBytesLoader,
+    RosCompressedImageLoader,
     RosImageLoader,
     RosPointCloud2Loader,
 )
@@ -33,6 +34,11 @@ class ImageMeta:
     encoding = "rgb8"
     step = 6
     is_bigendian = False
+
+
+class CompressedImageMeta:
+    header = Header()
+    format = "jpeg"
 
 
 class CloudMeta:
@@ -77,6 +83,14 @@ def test_ros_image_loader_reconstructs_message():
     assert msg.height == ImageMeta.height
     assert msg.width == ImageMeta.width
     assert msg.encoding == ImageMeta.encoding
+    assert bytes(msg.data) == payload
+
+
+def test_ros_compressed_image_loader_reconstructs_message():
+    payload = b"\xff\xd8compressed-jpeg\xff\xd9"
+    msg = RosCompressedImageLoader().from_bytes(payload, CompressedImageMeta())
+    assert msg.header == CompressedImageMeta.header
+    assert msg.format == CompressedImageMeta.format
     assert bytes(msg.data) == payload
 
 

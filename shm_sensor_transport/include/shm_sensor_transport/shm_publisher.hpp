@@ -20,6 +20,7 @@
 #include <utility>
 
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
@@ -205,6 +206,7 @@ private:
   typename rclcpp::Publisher<MetadataMessage>::SharedPtr metadata_publisher_;
 };
 
+using ShmCompressedImagePublisher = ShmPublisher<sensor_msgs::msg::CompressedImage>;
 using ShmImagePublisher = ShmPublisher<sensor_msgs::msg::Image>;
 using ShmPointCloud2Publisher = ShmPublisher<sensor_msgs::msg::PointCloud2>;
 

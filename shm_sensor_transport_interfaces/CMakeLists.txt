@@ -20,6 +20,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/ShmCompressedImage.msg"
   "msg/ShmImage.msg"
   "msg/ShmPointCloud2.msg"
   "msg/ShmTransportStatus.msg"

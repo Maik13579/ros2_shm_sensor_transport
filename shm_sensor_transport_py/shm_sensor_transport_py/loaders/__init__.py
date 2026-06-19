@@ -16,7 +16,11 @@ from shm_sensor_transport_py.loaders.image_cv2 import CvImageLoader
 from shm_sensor_transport_py.loaders.image_numpy import NumpyImageLoader
 from shm_sensor_transport_py.loaders.pointcloud2_numpy import PointCloud2NumpyLoader
 from shm_sensor_transport_py.loaders.pointcloud2_open3d import Open3DPointCloudLoader
-from shm_sensor_transport_py.loaders.ros_messages import RosImageLoader, RosPointCloud2Loader
+from shm_sensor_transport_py.loaders.ros_messages import (
+    RosCompressedImageLoader,
+    RosImageLoader,
+    RosPointCloud2Loader,
+)
 
 __all__ = [
     "CvImageLoader",
@@ -25,6 +29,7 @@ __all__ = [
     "Open3DPointCloudLoader",
     "PointCloud2NumpyLoader",
     "RawBytesLoader",
+    "RosCompressedImageLoader",
     "RosImageLoader",
     "RosPointCloud2Loader",
 ]
