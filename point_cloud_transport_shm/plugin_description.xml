@@ -1,0 +1,19 @@
+<library path="point_cloud_transport_shm">
+  <class
+    name="point_cloud_transport/shm_pub"
+    type="point_cloud_transport_shm::ShmPublisherPlugin"
+    base_class_type="point_cloud_transport::PublisherPlugin">
+    <description>
+      Publishes PointCloud2 payloads through shared memory and emits ShmPointCloud2 metadata.
+    </description>
+  </class>
+
+  <class
+    name="point_cloud_transport/shm_sub"
+    type="point_cloud_transport_shm::ShmSubscriberPlugin"
+    base_class_type="point_cloud_transport::SubscriberPlugin">
+    <description>
+      Subscribes to ShmPointCloud2 metadata and reconstructs PointCloud2 callbacks.
+    </description>
+  </class>
+</library>

@@ -1,0 +1,19 @@
+<library path="image_transport_shm">
+  <class
+    name="image_transport/shm_pub"
+    type="image_transport_shm::ShmPublisherPlugin"
+    base_class_type="image_transport::PublisherPlugin">
+    <description>
+      Publishes sensor_msgs/Image payloads through shared memory and emits ShmImage metadata.
+    </description>
+  </class>
+
+  <class
+    name="image_transport/shm_sub"
+    type="image_transport_shm::ShmSubscriberPlugin"
+    base_class_type="image_transport::SubscriberPlugin">
+    <description>
+      Subscribes to ShmImage metadata and reconstructs sensor_msgs/Image callbacks.
+    </description>
+  </class>
+</library>

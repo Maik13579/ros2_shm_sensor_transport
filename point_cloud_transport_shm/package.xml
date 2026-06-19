@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>point_cloud_transport_shm</name>
+  <version>0.1.0</version>
+  <description>Shared-memory point_cloud_transport plugin for PointCloud2 streams.</description>
+  <maintainer email="maik.knof@gmx.de">Maik Knof</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>pluginlib</depend>
+  <depend>point_cloud_transport</depend>
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>shm_sensor_transport</depend>
+  <depend>shm_sensor_transport_interfaces</depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -293,6 +293,93 @@ clouds, use `shm_sensor_transport::ShmPointCloud2Subscriber` with a
 the same normal topic names as the Python API and also appends `/_shm` unless
 the topic already points at the metadata topic.
 
+## image_transport and point_cloud_transport
+
+The optional `image_transport_shm` and `point_cloud_transport_shm` packages let
+standard ROS transport users select the shared-memory path with transport name
+`shm`. These packages depend on the transport frameworks; the core
+`shm_sensor_transport` package does not.
+
+Use `image_transport` with `TransportHints(..., "shm")`:
+
+```cpp
+#include <image_transport/image_transport.hpp>
+#include <image_transport/transport_hints.hpp>
+
+image_transport::ImageTransport image_transport(node);
+
+auto publisher = image_transport.advertise("/camera/image_raw", 1);
+auto hints = image_transport::TransportHints(node.get(), "shm");
+auto subscriber = image_transport.subscribe(
+  "/camera/image_raw",
+  1,
+  [](const sensor_msgs::msg::Image::ConstSharedPtr & msg) {
+    // Normal Image callback.
+  },
+  nullptr,
+  &hints);
+
+publisher.publish(image_msg);
+```
+
+Use `point_cloud_transport` with `TransportHints("shm")`:
+
+```cpp
+#include <point_cloud_transport/point_cloud_transport.hpp>
+#include <point_cloud_transport/transport_hints.hpp>
+
+point_cloud_transport::PointCloudTransport point_cloud_transport(node);
+
+auto publisher = point_cloud_transport.advertise("/points", 1);
+auto hints = point_cloud_transport::TransportHints("shm");
+auto subscriber = point_cloud_transport.subscribe(
+  "/points",
+  1,
+  [](const sensor_msgs::msg::PointCloud2::ConstSharedPtr & msg) {
+    // Normal PointCloud2 callback.
+  },
+  nullptr,
+  &hints);
+
+publisher.publish(cloud_msg);
+```
+
+Both plugins publish or subscribe to the same hidden metadata topic convention:
+`<base_topic>/_shm`.
+
+SHM-specific options are ROS parameters on the node that creates the transport
+publisher or subscriber. The parameter namespace is derived from the metadata
+topic by removing the leading slash and replacing slashes with dots. For
+`/camera/image_raw`, configure publisher options under
+`camera.image_raw._shm`:
+
+```yaml
+camera_node:
+  ros__parameters:
+    camera:
+      image_raw:
+        _shm:
+          slot_count: 8
+          slot_size_bytes: 8294400
+          allow_resize: false
+          warn_on_oversized_frame: true
+```
+
+Subscriber-side rate limiting uses the same namespace on the subscribing node:
+
+```yaml
+consumer_node:
+  ros__parameters:
+    camera:
+      image_raw:
+        _shm:
+          rate_limit_hz: 30.0
+```
+
+Point clouds use the same convention. For `/points`, set
+`points._shm.slot_size_bytes`, `points._shm.slot_count`, and the other options
+on the point cloud publisher node.
+
 ## Relay Components
 
 Use a relay when an existing sensor driver already publishes
