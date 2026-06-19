@@ -33,14 +33,28 @@ to keep reusing ring-buffer slots.
 
 ## Architecture
 
-The transport has three ROS 2 packages:
+The repository is split into focused ROS 2 packages:
 
 - `shm_sensor_transport_interfaces`: metadata message definitions shared by the
   C++ and Python packages.
 - `shm_sensor_transport`: C++ relay components, shared-memory ring-buffer
-  implementation, and C++ publisher/subscriber API.
+  implementation, and direct C++ publisher/subscriber API.
 - `shm_sensor_transport_py`: Python publisher/subscriber API, shared-memory
   handles, and loader plugins.
+- `image_transport_shm`: `image_transport` plugin that exposes the
+  shared-memory image path through the standard image transport API.
+- `point_cloud_transport_shm`: `point_cloud_transport` plugin that exposes the
+  shared-memory point-cloud path through the standard point cloud transport API.
+- `adapted_image_transport`: header-only type-adapted image publisher and
+  subscriber wrappers with public `image_transport` compatibility and a private
+  same-process intra-process path.
+- `adapted_point_cloud_transport`: header-only type-adapted point-cloud
+  publisher and subscriber wrappers with public `point_cloud_transport`
+  compatibility and a private same-process intra-process path.
+- `shm_sensor_transport_rviz`: RViz integration for inspecting streams carried
+  by the shared-memory transport.
+- `shm_sensor_transport_test`: test support and integration coverage for the
+  shared-memory transport packages.
 
 Direct shared-memory publishing uses one metadata topic and one POSIX shared
 memory object:
@@ -137,6 +151,19 @@ Direct `ShmPublisher` does not publish the original `sensor_msgs/Image` or
 `sensor_msgs/CompressedImage` or `sensor_msgs/PointCloud2` topic. If you need
 the normal sensor topic to remain available for ROS tools or remote subscribers,
 publish it separately or use a relay with an existing publisher.
+
+## Type adapters
+
+ROS 2 [REP-2007](https://ros.org/reps/rep-2007.html) type adapters let C++
+publishers and subscribers use application-specific data types while preserving
+a normal ROS message type at the topic boundary.
+
+This repository includes `adapted_image_transport` and
+`adapted_point_cloud_transport`, header-only wrappers around the standard
+`image_transport` and `point_cloud_transport` APIs. Same-process consumers can
+receive the adapted C++ type through ROS 2 intra-process communication, while
+external consumers and ROS tools continue to use the normal public transport
+topics.
 
 ## Usage
 
