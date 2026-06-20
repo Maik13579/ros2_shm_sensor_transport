@@ -29,7 +29,7 @@
 #include "shm_sensor_transport/shm_publisher.hpp"
 #include "shm_sensor_transport/shm_subscriber.hpp"
 
-#if defined(IMAGE_TRANSPORT_VERSION_GTE) && IMAGE_TRANSPORT_VERSION_GTE(5, 0, 0)
+#if defined(IMAGE_TRANSPORT_VERSION_MAJOR) && IMAGE_TRANSPORT_VERSION_MAJOR >= 5
 #define IMAGE_TRANSPORT_SHM_HAS_OPTIONS_OVERRIDES 1
 #else
 #define IMAGE_TRANSPORT_SHM_HAS_OPTIONS_OVERRIDES 0
