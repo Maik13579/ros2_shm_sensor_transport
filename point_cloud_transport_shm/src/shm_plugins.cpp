@@ -21,11 +21,20 @@
 #include <pluginlib/class_list_macros.hpp>
 #include <point_cloud_transport/publisher_plugin.hpp>
 #include <point_cloud_transport/subscriber_plugin.hpp>
+#if __has_include(<point_cloud_transport/version.h>)
+#include <point_cloud_transport/version.h>
+#endif
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
 #include "shm_sensor_transport/shm_publisher.hpp"
 #include "shm_sensor_transport/shm_subscriber.hpp"
+
+#if defined(POINT_CLOUD_TRANSPORT_VERSION_MAJOR) && POINT_CLOUD_TRANSPORT_VERSION_MAJOR >= 4
+#define POINT_CLOUD_TRANSPORT_SHM_HAS_PUBLISH_PTR 1
+#else
+#define POINT_CLOUD_TRANSPORT_SHM_HAS_PUBLISH_PTR 0
+#endif
 
 namespace point_cloud_transport_shm
 {
@@ -129,12 +138,14 @@ public:
     }
   }
 
+#if POINT_CLOUD_TRANSPORT_SHM_HAS_PUBLISH_PTR
   void publishPtr(const sensor_msgs::msg::PointCloud2::ConstSharedPtr & message) const override
   {
     if (message) {
       publish(*message);
     }
   }
+#endif
 
   rclcpp::PublisherBase::SharedPtr getPublisher() const override
   {

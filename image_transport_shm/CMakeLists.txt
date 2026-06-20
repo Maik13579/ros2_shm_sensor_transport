@@ -6,8 +6,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
-find_package(ament_cmake_target_dependencies REQUIRED)
-include("${ament_cmake_target_dependencies_DIR}/ament_target_dependencies.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/../cmake/ros2_shm_target_dependencies.cmake")
 find_package(image_transport REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -19,7 +18,7 @@ add_library(${PROJECT_NAME} SHARED
   src/shm_plugins.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
-ament_target_dependencies(${PROJECT_NAME}
+ros2_shm_target_dependencies(${PROJECT_NAME}
   image_transport
   pluginlib
   rclcpp
@@ -48,7 +47,7 @@ if(BUILD_TESTING)
   ament_add_gtest(test_image_transport_shm test/test_image_transport_shm.cpp)
   if(TARGET test_image_transport_shm)
     target_link_libraries(test_image_transport_shm ${PROJECT_NAME})
-    ament_target_dependencies(test_image_transport_shm
+    ros2_shm_target_dependencies(test_image_transport_shm
       image_transport
       pluginlib
       rclcpp

@@ -6,8 +6,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
-find_package(ament_cmake_target_dependencies REQUIRED)
-include("${ament_cmake_target_dependencies_DIR}/ament_target_dependencies.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/../cmake/ros2_shm_target_dependencies.cmake")
 find_package(image_transport REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -18,7 +17,7 @@ target_include_directories(${PROJECT_NAME} INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
 )
-ament_target_dependencies(${PROJECT_NAME} INTERFACE
+ros2_shm_target_dependencies(${PROJECT_NAME} INTERFACE
   image_transport
   rclcpp
   sensor_msgs
@@ -37,7 +36,7 @@ if(BUILD_TESTING)
   ament_add_gtest(test_adapted_image_transport test/test_adapted_image_transport.cpp)
   if(TARGET test_adapted_image_transport)
     target_link_libraries(test_adapted_image_transport ${PROJECT_NAME})
-    ament_target_dependencies(test_adapted_image_transport
+    ros2_shm_target_dependencies(test_adapted_image_transport
       image_transport
       rclcpp
       sensor_msgs
