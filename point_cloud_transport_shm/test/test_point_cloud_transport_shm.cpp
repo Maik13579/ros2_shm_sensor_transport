@@ -103,6 +103,16 @@ std::string parameter_prefix(const std::string & topic)
   return prefix + "._shm";
 }
 
+std::string transport_parameter_prefix(const std::string & topic)
+{
+  auto prefix = topic;
+  if (!prefix.empty() && prefix.front() == '/') {
+    prefix.erase(prefix.begin());
+  }
+  std::replace(prefix.begin(), prefix.end(), '/', '.');
+  return prefix;
+}
+
 }  // namespace
 
 TEST_F(PointCloudTransportShmFixture, PluginlibLoadsPublisherAndSubscriber)
@@ -147,9 +157,12 @@ TEST_F(PointCloudTransportShmFixture, PublishesAndSubscribesThroughPointCloudTra
     std::make_shared<rclcpp::Node>("test_point_cloud_transport_shm_sub_" + suffix);
   const std::string topic = "/point_cloud_transport_shm_test_" + suffix + "/points";
   const auto prefix = parameter_prefix(topic);
+  const auto transport_prefix = transport_parameter_prefix(topic);
 
   pub_node->declare_parameter<std::int64_t>(prefix + ".slot_size_bytes", 32);
   pub_node->declare_parameter<int>(prefix + ".slot_count", 3);
+  pub_node->declare_parameter<std::vector<std::string>>(
+    transport_prefix + ".enable_pub_plugins", {"point_cloud_transport/shm"});
 
   sensor_msgs::msg::PointCloud2::ConstSharedPtr received;
   shm_sensor_transport_interfaces::msg::ShmPointCloud2::ConstSharedPtr meta;
