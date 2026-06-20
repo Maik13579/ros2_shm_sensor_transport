@@ -56,6 +56,29 @@ inline rclcpp::QoS qos_from_rmw(const rmw_qos_profile_t & profile)
   return rclcpp::QoS(rclcpp::QoSInitialization::from_rmw(profile), profile);
 }
 
+template<typename OptionsT>
+auto create_public_publisher(
+  rclcpp::Node * node,
+  const std::string & base_topic,
+  rmw_qos_profile_t custom_qos,
+  const OptionsT & options,
+  int)
+-> decltype(image_transport::create_publisher(node, base_topic, custom_qos, options))
+{
+  return image_transport::create_publisher(node, base_topic, custom_qos, options);
+}
+
+template<typename OptionsT>
+image_transport::Publisher create_public_publisher(
+  rclcpp::Node * node,
+  const std::string & base_topic,
+  rmw_qos_profile_t custom_qos,
+  const OptionsT &,
+  double)
+{
+  return image_transport::create_publisher(node, base_topic, custom_qos);
+}
+
 /// Context-local registry for adapted publishers and same-process subscribers.
 class Registry
 {
@@ -250,8 +273,8 @@ public:
     registry_(detail::registry_for(node_)),
     token_(registry_->next_token()),
     adapted_topic_(detail::adapted_topic_name(base_topic_, token_)),
-    public_publisher_(image_transport::create_publisher(
-        node_.get(), base_topic_, custom_qos, public_options))
+    public_publisher_(detail::create_public_publisher(
+        node_.get(), base_topic_, custom_qos, public_options, 0))
   {
     auto adapted_options = public_options;
     adapted_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
