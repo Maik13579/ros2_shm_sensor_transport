@@ -19,12 +19,21 @@
 
 #include <image_transport/publisher_plugin.hpp>
 #include <image_transport/subscriber_plugin.hpp>
+#if __has_include(<image_transport/version.h>)
+#include <image_transport/version.h>
+#endif
 #include <pluginlib/class_list_macros.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
 #include "shm_sensor_transport/shm_publisher.hpp"
 #include "shm_sensor_transport/shm_subscriber.hpp"
+
+#if defined(IMAGE_TRANSPORT_VERSION_GTE) && IMAGE_TRANSPORT_VERSION_GTE(5, 0, 0)
+#define IMAGE_TRANSPORT_SHM_HAS_OPTIONS_OVERRIDES 1
+#else
+#define IMAGE_TRANSPORT_SHM_HAS_OPTIONS_OVERRIDES 0
+#endif
 
 namespace image_transport_shm
 {
@@ -128,17 +137,32 @@ public:
   }
 
 protected:
+#if IMAGE_TRANSPORT_SHM_HAS_OPTIONS_OVERRIDES
   void advertiseImpl(
     rclcpp::Node * node,
     const std::string & base_topic,
     rmw_qos_profile_t custom_qos,
     rclcpp::PublisherOptions /*options*/) override
+#else
+  void advertiseImpl(
+    rclcpp::Node * node,
+    const std::string & base_topic,
+    rmw_qos_profile_t custom_qos) override
+#endif
+  {
+    advertise_shm(node, base_topic, custom_qos);
+  }
+
+private:
+  void advertise_shm(
+    rclcpp::Node * node,
+    const std::string & base_topic,
+    rmw_qos_profile_t custom_qos)
   {
     publisher_ = std::make_unique<shm_sensor_transport::ShmImagePublisher>(
       node, base_topic, publisher_options(*node, base_topic, custom_qos));
   }
 
-private:
   std::unique_ptr<shm_sensor_transport::ShmImagePublisher> publisher_;
 };
 
@@ -166,12 +190,30 @@ public:
   }
 
 protected:
+#if IMAGE_TRANSPORT_SHM_HAS_OPTIONS_OVERRIDES
   void subscribeImpl(
     rclcpp::Node * node,
     const std::string & base_topic,
     const Callback & callback,
     rmw_qos_profile_t custom_qos,
     rclcpp::SubscriptionOptions /*options*/) override
+#else
+  void subscribeImpl(
+    rclcpp::Node * node,
+    const std::string & base_topic,
+    const Callback & callback,
+    rmw_qos_profile_t custom_qos) override
+#endif
+  {
+    subscribe_shm(node, base_topic, callback, custom_qos);
+  }
+
+private:
+  void subscribe_shm(
+    rclcpp::Node * node,
+    const std::string & base_topic,
+    const Callback & callback,
+    rmw_qos_profile_t custom_qos)
   {
     subscriber_ = std::make_unique<shm_sensor_transport::ShmImageSubscriber>(
       node,
@@ -185,7 +227,6 @@ protected:
       subscriber_options(*node, base_topic, custom_qos));
   }
 
-private:
   std::unique_ptr<shm_sensor_transport::ShmImageSubscriber> subscriber_;
 };
 
