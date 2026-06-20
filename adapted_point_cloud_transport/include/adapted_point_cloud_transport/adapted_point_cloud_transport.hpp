@@ -262,8 +262,8 @@ public:
       [this]() {drain_pending_publish();},
       nullptr,
       node_->get_node_base_interface().get(),
-      node_->get_node_timers_interface().get(),
-      false);
+      node_->get_node_timers_interface().get());
+    publish_timer_->cancel();
     registry_->register_publisher(base_topic_, std::type_index(typeid(AdapterT)), adapted_topic_,
         token_);
   }
