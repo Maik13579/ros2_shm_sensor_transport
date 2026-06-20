@@ -19,23 +19,12 @@
 
 #include <image_transport/publisher_plugin.hpp>
 #include <image_transport/subscriber_plugin.hpp>
-#if __has_include(<image_transport/image_transport/version.h>)
-#include <image_transport/image_transport/version.h>
-#elif __has_include(<image_transport/version.h>)
-#include <image_transport/version.h>
-#endif
 #include <pluginlib/class_list_macros.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
 #include "shm_sensor_transport/shm_publisher.hpp"
 #include "shm_sensor_transport/shm_subscriber.hpp"
-
-#if defined(IMAGE_TRANSPORT_VERSION_MAJOR) && IMAGE_TRANSPORT_VERSION_MAJOR >= 5
-#define IMAGE_TRANSPORT_SHM_HAS_PUBLISHER_OPTIONS_OVERRIDE 1
-#else
-#define IMAGE_TRANSPORT_SHM_HAS_PUBLISHER_OPTIONS_OVERRIDE 0
-#endif
 
 namespace image_transport_shm
 {
@@ -139,18 +128,19 @@ public:
   }
 
 protected:
-#if IMAGE_TRANSPORT_SHM_HAS_PUBLISHER_OPTIONS_OVERRIDE
   void advertiseImpl(
     rclcpp::Node * node,
     const std::string & base_topic,
     rmw_qos_profile_t custom_qos,
-    rclcpp::PublisherOptions /*options*/) override
-#else
+    rclcpp::PublisherOptions /*options*/)
+  {
+    advertise_shm(node, base_topic, custom_qos);
+  }
+
   void advertiseImpl(
     rclcpp::Node * node,
     const std::string & base_topic,
-    rmw_qos_profile_t custom_qos) override
-#endif
+    rmw_qos_profile_t custom_qos)
   {
     advertise_shm(node, base_topic, custom_qos);
   }
@@ -202,16 +192,14 @@ protected:
     subscribe_shm(node, base_topic, callback, custom_qos);
   }
 
-#if !IMAGE_TRANSPORT_SHM_HAS_PUBLISHER_OPTIONS_OVERRIDE
   void subscribeImpl(
     rclcpp::Node * node,
     const std::string & base_topic,
     const Callback & callback,
-    rmw_qos_profile_t custom_qos) override
+    rmw_qos_profile_t custom_qos)
   {
     subscribe_shm(node, base_topic, callback, custom_qos);
   }
-#endif
 
 private:
   void subscribe_shm(
