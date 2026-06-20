@@ -21,6 +21,7 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_target_dependencies REQUIRED)
+include("${ament_cmake_target_dependencies_DIR}/ament_target_dependencies.cmake")
 find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)

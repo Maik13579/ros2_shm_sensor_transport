@@ -7,6 +7,7 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_target_dependencies REQUIRED)
+include("${ament_cmake_target_dependencies_DIR}/ament_target_dependencies.cmake")
 find_package(pluginlib REQUIRED)
 find_package(point_cloud_transport REQUIRED)
 find_package(rclcpp REQUIRED)
