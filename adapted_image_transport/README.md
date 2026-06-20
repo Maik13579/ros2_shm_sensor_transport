@@ -4,6 +4,11 @@
 with a same-process type-adapted path for REP-2007 adapters whose ROS message
 type is `sensor_msgs::msg::Image`.
 
+Use it when C++ nodes in the same process should exchange an application-specific
+image representation without converting through `sensor_msgs/msg/Image`, while
+external consumers and ROS tools should still see the normal image transport
+topics.
+
 Public consumers keep using the base image topic and normal transport topics.
 Same-process adapted consumers use a private implementation topic:
 
@@ -32,6 +37,8 @@ path or back to public transport without polling.
 
 ## Publisher
 
+The adapter type must use `sensor_msgs::msg::Image` as its ROS message type:
+
 ```cpp
 using AdaptedImage = rclcpp::adapt_type<MyImageView>::as<sensor_msgs::msg::Image>;
 
@@ -44,6 +51,9 @@ pub.publish(std::move(frame));
 ```
 
 ## Subscriber
+
+Create a shared-message subscription when the callback should borrow the adapted
+object on the local path:
 
 ```cpp
 using AdaptedImage = rclcpp::adapt_type<MyImageView>::as<sensor_msgs::msg::Image>;
@@ -72,3 +82,14 @@ auto sub = adapted_image_transport::create_unique_subscription<AdaptedImage>(
 
 Local adapted topics are reserved implementation details. They are process-local
 optimization hooks, not security boundaries.
+
+## Notes
+
+- The public topic remains compatible with standard `image_transport`
+  subscribers.
+- Same-process adapted delivery requires the publisher and subscriber to share
+  the same `rclcpp::Context`.
+- If no matching local adapted publisher is available, subscribers fall back to
+  the public transport path.
+- The private `/_adapted/<publisher_token>` topic name is implementation detail;
+  do not hard-code it in launch files or user-facing configuration.
