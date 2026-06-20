@@ -20,7 +20,6 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
-include("${CMAKE_CURRENT_LIST_DIR}/../cmake/ros2_shm_target_dependencies.cmake")
 find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
@@ -35,7 +34,7 @@ target_include_directories(benchmark_image_publisher_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
-ros2_shm_target_dependencies(benchmark_image_publisher_component
+ament_target_dependencies(benchmark_image_publisher_component
   rclcpp
   rclcpp_components
   sensor_msgs
@@ -47,7 +46,7 @@ rclcpp_components_register_nodes(benchmark_image_publisher_component
 add_executable(benchmark_image_publisher src/benchmark_image_publisher_main.cpp)
 target_compile_features(benchmark_image_publisher PUBLIC cxx_std_17)
 target_link_libraries(benchmark_image_publisher benchmark_image_publisher_component)
-ros2_shm_target_dependencies(benchmark_image_publisher rclcpp)
+ament_target_dependencies(benchmark_image_publisher rclcpp)
 
 install(TARGETS benchmark_image_publisher benchmark_image_publisher_component
   ARCHIVE DESTINATION lib

@@ -6,7 +6,6 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
-include("${CMAKE_CURRENT_LIST_DIR}/../cmake/ros2_shm_target_dependencies.cmake")
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rviz_common REQUIRED)
@@ -23,7 +22,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
-ros2_shm_target_dependencies(${PROJECT_NAME}
+ament_target_dependencies(${PROJECT_NAME}
   pluginlib
   rclcpp
   rviz_common
@@ -55,7 +54,7 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_pluginlib_loads test/test_pluginlib_loads.cpp)
   if(TARGET test_pluginlib_loads)
-    ros2_shm_target_dependencies(test_pluginlib_loads
+    ament_target_dependencies(test_pluginlib_loads
       pluginlib
       rviz_common
     )

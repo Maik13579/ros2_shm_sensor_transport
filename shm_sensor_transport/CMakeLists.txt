@@ -19,7 +19,6 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
-include("${CMAKE_CURRENT_LIST_DIR}/../cmake/ros2_shm_target_dependencies.cmake")
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -38,7 +37,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
-ros2_shm_target_dependencies(${PROJECT_NAME}
+ament_target_dependencies(${PROJECT_NAME}
   rclcpp
   sensor_msgs
   shm_sensor_transport_interfaces
@@ -52,7 +51,7 @@ add_library(${PROJECT_NAME}_components SHARED
 )
 target_compile_features(${PROJECT_NAME}_components PUBLIC cxx_std_17)
 target_link_libraries(${PROJECT_NAME}_components ${PROJECT_NAME})
-ros2_shm_target_dependencies(${PROJECT_NAME}_components
+ament_target_dependencies(${PROJECT_NAME}_components
   rclcpp
   rclcpp_components
   sensor_msgs
