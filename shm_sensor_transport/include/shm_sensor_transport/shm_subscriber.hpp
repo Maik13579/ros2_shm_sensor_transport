@@ -47,7 +47,7 @@ class ShmSubscriber
 public:
   using Traits = ShmMessageTraits<SensorMessageT>;
   using MetadataMessage = typename Traits::MetadataMessage;
-  using Callback = std::function<void(std::unique_ptr<SensorMessageT>, const MetadataMessage &)>;
+  using Callback = std::function<void (std::unique_ptr<SensorMessageT>, const MetadataMessage &)>;
 
   ShmSubscriber(
     rclcpp::Node * node,

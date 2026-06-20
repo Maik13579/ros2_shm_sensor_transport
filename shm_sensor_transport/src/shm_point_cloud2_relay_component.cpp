@@ -40,7 +40,7 @@ ShmPointCloud2RelayComponent::ShmPointCloud2RelayComponent(const rclcpp::NodeOpt
   if (params_.publish_status && !params_.status_topic.empty()) {
     status_publisher_ =
       create_publisher<shm_sensor_transport_interfaces::msg::ShmTransportStatus>(
-        params_.status_topic, rclcpp::QoS(1).reliable());
+      params_.status_topic, rclcpp::QoS(1).reliable());
     if (params_.status_rate > 0.0) {
       const auto period = std::chrono::duration<double>(1.0 / params_.status_rate);
       status_timer_ = create_wall_timer(

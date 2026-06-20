@@ -113,7 +113,11 @@ public:
     if (!publisher_) {
       return 0U;
     }
-    return static_cast<uint32_t>(publisher_->metadata_publisher()->get_subscription_count());
+    const auto metadata_publisher = publisher_->metadata_publisher();
+    if (!metadata_publisher) {
+      return 0U;
+    }
+    return static_cast<uint32_t>(metadata_publisher->get_subscription_count());
   }
 
   std::string getTopic() const override
@@ -213,7 +217,11 @@ public:
     if (!subscriber_) {
       return 0U;
     }
-    return static_cast<uint32_t>(subscriber_->subscription()->get_publisher_count());
+    const auto subscription = subscriber_->subscription();
+    if (!subscription) {
+      return 0U;
+    }
+    return static_cast<uint32_t>(subscription->get_publisher_count());
   }
 
   void shutdown() override
@@ -261,7 +269,8 @@ protected:
         sensor_msgs::msg::PointCloud2::UniquePtr msg,
         const shm_sensor_transport_interfaces::msg::ShmPointCloud2 &)
       {
-        callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr(std::move(msg)));
+        sensor_msgs::msg::PointCloud2::ConstSharedPtr shared_msg = std::move(msg);
+        callback(shared_msg);
       },
       subscriber_options(*node_, base_topic, custom_qos));
   }

@@ -128,8 +128,9 @@ TEST_F(RclcppFixture, ImagePublisherPublishesReadableMetadata)
   image.data = {1, 2, 3, 4};
 
   ASSERT_TRUE(publisher.publish(image));
-  ASSERT_TRUE(spin_until_metadata<shm_sensor_transport_interfaces::msg::ShmImage>(
-    *publisher_node, *subscriber_node, meta));
+  ASSERT_TRUE(
+    spin_until_metadata<shm_sensor_transport_interfaces::msg::ShmImage>(
+      *publisher_node, *subscriber_node, meta));
   EXPECT_EQ(meta->height, 1U);
   EXPECT_EQ(meta->width, 4U);
   EXPECT_EQ(meta->encoding, "mono8");
@@ -168,8 +169,9 @@ TEST_F(RclcppFixture, CompressedImagePublisherPublishesReadableMetadata)
   image.data = {0xff, 0xd8, 1, 2, 0xff, 0xd9};
 
   ASSERT_TRUE(publisher.publish(image));
-  ASSERT_TRUE(spin_until_metadata<shm_sensor_transport_interfaces::msg::ShmCompressedImage>(
-    *publisher_node, *subscriber_node, meta));
+  ASSERT_TRUE(
+    spin_until_metadata<shm_sensor_transport_interfaces::msg::ShmCompressedImage>(
+      *publisher_node, *subscriber_node, meta));
   EXPECT_EQ(meta->format, "jpeg");
 
   shm_sensor_transport::ShmHandle handle;
@@ -208,8 +210,9 @@ TEST_F(RclcppFixture, PointCloud2PublisherPublishesReadableMetadata)
   cloud.data = {5, 6, 7, 8};
 
   ASSERT_TRUE(publisher.publish(cloud));
-  ASSERT_TRUE(spin_until_metadata<shm_sensor_transport_interfaces::msg::ShmPointCloud2>(
-    *publisher_node, *subscriber_node, meta));
+  ASSERT_TRUE(
+    spin_until_metadata<shm_sensor_transport_interfaces::msg::ShmPointCloud2>(
+      *publisher_node, *subscriber_node, meta));
   EXPECT_EQ(meta->height, 1U);
   EXPECT_EQ(meta->width, 1U);
   EXPECT_EQ(meta->point_step, 4U);
@@ -256,9 +259,11 @@ TEST_F(RclcppFixture, ImagePublisherFeedsShmSubscriberCallback)
   image.data = {10, 11, 12, 13};
 
   ASSERT_TRUE(publisher.publish(image));
-  ASSERT_TRUE(spin_until(*publisher_node, *subscriber_node, [&received]() {
-      return static_cast<bool>(received);
-  }));
+  ASSERT_TRUE(
+    spin_until(
+      *publisher_node, *subscriber_node, [&received]() {
+        return static_cast<bool>(received);
+      }));
   EXPECT_EQ(received->header.frame_id, "camera");
   EXPECT_EQ(received->data, (std::vector<std::uint8_t>{10, 11, 12, 13}));
   EXPECT_EQ(received_meta.payload_size, 4U);
@@ -299,9 +304,11 @@ TEST_F(RclcppFixture, CompressedImagePublisherFeedsShmSubscriberCallback)
   image.data = {137, 80, 78, 71, 1, 2};
 
   ASSERT_TRUE(publisher.publish(image));
-  ASSERT_TRUE(spin_until(*publisher_node, *subscriber_node, [&received]() {
-      return static_cast<bool>(received);
-  }));
+  ASSERT_TRUE(
+    spin_until(
+      *publisher_node, *subscriber_node, [&received]() {
+        return static_cast<bool>(received);
+      }));
   EXPECT_EQ(received->header.frame_id, "camera");
   EXPECT_EQ(received->format, "png");
   EXPECT_EQ(received->data, (std::vector<std::uint8_t>{137, 80, 78, 71, 1, 2}));
@@ -347,9 +354,11 @@ TEST_F(RclcppFixture, PointCloud2PublisherFeedsShmSubscriberCallback)
   cloud.data = {20, 21, 22, 23};
 
   ASSERT_TRUE(publisher.publish(cloud));
-  ASSERT_TRUE(spin_until(*publisher_node, *subscriber_node, [&received]() {
-      return static_cast<bool>(received);
-  }));
+  ASSERT_TRUE(
+    spin_until(
+      *publisher_node, *subscriber_node, [&received]() {
+        return static_cast<bool>(received);
+      }));
   EXPECT_EQ(received->header.frame_id, "lidar");
   EXPECT_EQ(received->data, (std::vector<std::uint8_t>{20, 21, 22, 23}));
   EXPECT_EQ(received_meta.payload_size, 4U);
@@ -448,9 +457,11 @@ TEST_F(RclcppFixture, UnlinksSharedMemoryOnDestruction)
 
 TEST_F(RclcppFixture, CompressedImageRelayComponentConstructs)
 {
-  EXPECT_NO_THROW({
+  EXPECT_NO_THROW(
+  {
     rclcpp::NodeOptions options;
-    options.parameter_overrides({
+    options.parameter_overrides(
+    {
       rclcpp::Parameter("common.input_topic", "/camera/image_raw/compressed"),
       rclcpp::Parameter("common.publish_status", false),
     });

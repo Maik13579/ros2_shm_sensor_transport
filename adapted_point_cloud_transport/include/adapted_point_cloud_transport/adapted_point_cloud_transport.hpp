@@ -264,8 +264,9 @@ public:
       node_->get_node_base_interface().get(),
       node_->get_node_timers_interface().get());
     publish_timer_->cancel();
-    registry_->register_publisher(base_topic_, std::type_index(typeid(AdapterT)), adapted_topic_,
-        token_);
+    registry_->register_publisher(
+      base_topic_, std::type_index(typeid(AdapterT)), adapted_topic_,
+      token_);
   }
 
   ~Publisher()
@@ -453,8 +454,8 @@ class Subscriber
 public:
   using Adapter = rclcpp::TypeAdapter<AdapterT>;
   using CustomMessage = typename Adapter::custom_type;
-  using Callback = std::function<void(const std::shared_ptr<const CustomMessage> &)>;
-  using UniqueCallback = std::function<void(std::unique_ptr<CustomMessage>)>;
+  using Callback = std::function<void (const std::shared_ptr<const CustomMessage> &)>;
+  using UniqueCallback = std::function<void (std::unique_ptr<CustomMessage>)>;
   struct UniqueCallbackTag {};
 
   Subscriber() = default;
@@ -480,7 +481,7 @@ public:
     public_options_(std::move(public_options)),
     registry_(detail::registry_for(node_)),
     guard_condition_(std::make_shared<rclcpp::GuardCondition>(
-      node_->get_node_base_interface()->get_context()))
+        node_->get_node_base_interface()->get_context()))
   {
     guard_condition_->set_on_trigger_callback([this](size_t) {refresh_subscription();});
     interest_id_ = registry_->add_interest(
@@ -505,7 +506,7 @@ public:
     public_options_(std::move(public_options)),
     registry_(detail::registry_for(node_)),
     guard_condition_(std::make_shared<rclcpp::GuardCondition>(
-      node_->get_node_base_interface()->get_context()))
+        node_->get_node_base_interface()->get_context()))
   {
     guard_condition_->set_on_trigger_callback([this](size_t) {refresh_subscription();});
     interest_id_ = registry_->add_interest(
@@ -564,8 +565,9 @@ private:
       return;
     }
 
-    const auto publishers = registry_->find_publishers(base_topic_,
-        std::type_index(typeid(AdapterT)));
+    const auto publishers = registry_->find_publishers(
+      base_topic_,
+      std::type_index(typeid(AdapterT)));
     if (!publishers.empty()) {
       const auto adapted_topic = publishers.front().adapted_topic;
       if (using_local_ && adapted_topic == current_adapted_topic_) {

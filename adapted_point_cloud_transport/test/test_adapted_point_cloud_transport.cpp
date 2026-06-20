@@ -178,7 +178,7 @@ TEST_F(AdaptedPointCloudTransportTest, UniquePtrLocalDeliveryPreservesAddress)
       [&](std::unique_ptr<CloudFrame> msg) {
         received_address = msg.get();
         EXPECT_EQ(25u, msg->width);
-    }));
+      }));
   ASSERT_TRUE(sub.usingLocalTransport());
 
   auto cloud = std::make_unique<CloudFrame>(make_cloud(25));
@@ -203,7 +203,7 @@ TEST_F(AdaptedPointCloudTransportTest, UniqueSubscriberReceivesPublicFallback)
       [&](std::unique_ptr<CloudFrame> msg) {
         ++received;
         EXPECT_EQ(26u, msg->width);
-    }));
+      }));
   EXPECT_FALSE(sub.usingLocalTransport());
 
   auto raw_pub = node->create_publisher<sensor_msgs::msg::PointCloud2>(
@@ -229,7 +229,7 @@ TEST_F(AdaptedPointCloudTransportTest, UniqueSubscriberBeforePublisherSwitchesTo
       [&](std::unique_ptr<CloudFrame> msg) {
         received_address = msg.get();
         EXPECT_EQ(27u, msg->width);
-    }));
+      }));
   EXPECT_FALSE(sub.usingLocalTransport());
 
   auto pub = adapted_point_cloud_transport::create_publisher<AdaptedCloud>(

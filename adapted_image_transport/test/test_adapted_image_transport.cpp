@@ -178,7 +178,7 @@ TEST_F(AdaptedImageTransportTest, UniquePtrLocalDeliveryPreservesAddress)
       [&](std::unique_ptr<ImageFrame> msg) {
         received_address = msg.get();
         EXPECT_EQ(15u, msg->width);
-    }));
+      }));
   ASSERT_TRUE(sub.usingLocalTransport());
 
   auto frame = std::make_unique<ImageFrame>(make_frame(15));
@@ -203,7 +203,7 @@ TEST_F(AdaptedImageTransportTest, UniqueSubscriberReceivesPublicFallback)
       [&](std::unique_ptr<ImageFrame> msg) {
         ++received;
         EXPECT_EQ(16u, msg->width);
-    }));
+      }));
   EXPECT_FALSE(sub.usingLocalTransport());
 
   auto raw_pub = node->create_publisher<sensor_msgs::msg::Image>(
@@ -229,7 +229,7 @@ TEST_F(AdaptedImageTransportTest, UniqueSubscriberBeforePublisherSwitchesToLocal
       [&](std::unique_ptr<ImageFrame> msg) {
         received_address = msg.get();
         EXPECT_EQ(17u, msg->width);
-    }));
+      }));
   EXPECT_FALSE(sub.usingLocalTransport());
 
   auto pub = adapted_image_transport::create_publisher<AdaptedImage>(
