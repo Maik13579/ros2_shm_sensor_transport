@@ -119,9 +119,11 @@ TEST_F(ImageTransportShmFixture, DeclaredPluginClassesIncludeShm)
   const auto pub_classes = pub_loader.getDeclaredClasses();
   const auto sub_classes = sub_loader.getDeclaredClasses();
 
-  EXPECT_NE(std::find(pub_classes.begin(), pub_classes.end(), "image_transport/shm_pub"),
+  EXPECT_NE(
+    std::find(pub_classes.begin(), pub_classes.end(), "image_transport/shm_pub"),
     pub_classes.end());
-  EXPECT_NE(std::find(sub_classes.begin(), sub_classes.end(), "image_transport/shm_sub"),
+  EXPECT_NE(
+    std::find(sub_classes.begin(), sub_classes.end(), "image_transport/shm_sub"),
     sub_classes.end());
 }
 
