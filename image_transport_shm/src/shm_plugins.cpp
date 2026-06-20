@@ -30,9 +30,9 @@
 #include "shm_sensor_transport/shm_subscriber.hpp"
 
 #if defined(IMAGE_TRANSPORT_VERSION_MAJOR) && IMAGE_TRANSPORT_VERSION_MAJOR >= 5
-#define IMAGE_TRANSPORT_SHM_HAS_OPTIONS_OVERRIDES 1
+#define IMAGE_TRANSPORT_SHM_HAS_PUBLISHER_OPTIONS_OVERRIDE 1
 #else
-#define IMAGE_TRANSPORT_SHM_HAS_OPTIONS_OVERRIDES 0
+#define IMAGE_TRANSPORT_SHM_HAS_PUBLISHER_OPTIONS_OVERRIDE 0
 #endif
 
 namespace image_transport_shm
@@ -137,7 +137,7 @@ public:
   }
 
 protected:
-#if IMAGE_TRANSPORT_SHM_HAS_OPTIONS_OVERRIDES
+#if IMAGE_TRANSPORT_SHM_HAS_PUBLISHER_OPTIONS_OVERRIDE
   void advertiseImpl(
     rclcpp::Node * node,
     const std::string & base_topic,
@@ -190,23 +190,26 @@ public:
   }
 
 protected:
-#if IMAGE_TRANSPORT_SHM_HAS_OPTIONS_OVERRIDES
   void subscribeImpl(
     rclcpp::Node * node,
     const std::string & base_topic,
     const Callback & callback,
     rmw_qos_profile_t custom_qos,
     rclcpp::SubscriptionOptions /*options*/) override
-#else
+  {
+    subscribe_shm(node, base_topic, callback, custom_qos);
+  }
+
+#if !IMAGE_TRANSPORT_SHM_HAS_PUBLISHER_OPTIONS_OVERRIDE
   void subscribeImpl(
     rclcpp::Node * node,
     const std::string & base_topic,
     const Callback & callback,
     rmw_qos_profile_t custom_qos) override
-#endif
   {
     subscribe_shm(node, base_topic, callback, custom_qos);
   }
+#endif
 
 private:
   void subscribe_shm(
