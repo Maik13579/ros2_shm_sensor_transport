@@ -94,7 +94,7 @@ void ShmImageDisplay::subscribe()
         std::unique_ptr<sensor_msgs::msg::Image> message,
         const shm_sensor_transport_interfaces::msg::ShmImage &) {
         std::shared_ptr<sensor_msgs::msg::Image> shared_message = std::move(message);
-        incomingMessage(shared_message);
+        processMessage(shared_message);
       },
       options);
     subscription_start_time_ = node->now();
@@ -153,7 +153,7 @@ void ShmPointCloud2Display::subscribe()
         std::unique_ptr<sensor_msgs::msg::PointCloud2> message,
         const shm_sensor_transport_interfaces::msg::ShmPointCloud2 &) {
         std::shared_ptr<sensor_msgs::msg::PointCloud2> shared_message = std::move(message);
-        incomingMessage(shared_message);
+        processMessage(shared_message);
       },
       options);
     subscription_start_time_ = node->now();
