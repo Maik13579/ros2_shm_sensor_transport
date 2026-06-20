@@ -19,7 +19,9 @@
 
 #include <image_transport/publisher_plugin.hpp>
 #include <image_transport/subscriber_plugin.hpp>
-#if __has_include(<image_transport/version.h>)
+#if __has_include(<image_transport/image_transport/version.h>)
+#include <image_transport/image_transport/version.h>
+#elif __has_include(<image_transport/version.h>)
 #include <image_transport/version.h>
 #endif
 #include <pluginlib/class_list_macros.hpp>
